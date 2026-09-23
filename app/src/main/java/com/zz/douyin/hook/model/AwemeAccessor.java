@@ -199,20 +199,27 @@ public final class AwemeAccessor {
 
     public String ipLabel() {
         String direct = firstNonBlank(
-                textOn(aweme, "getIpLabel", "ipLabel", "ip_label"),
                 textOn(aweme, "getIpLocation", "ipLocation", "ip_location"),
                 textValue(readSerializedField(aweme, "ip_location_string")),
-                textOn(aweme, "getIpAttribution", "ipAttribution", "ip_attribution")
+                textOn(aweme, "getIpAttribution", "ipAttribution", "ip_attribution"),
+                textOn(aweme, "getAuthorIpLocation",
+                        "authorIpLocation", "author_ip_location"),
+                textOn(aweme, "getIpLabel", "ipLabel", "ip_label")
         );
         if (!direct.isEmpty()) {
             return direct;
         }
         Object author = author();
         return firstNonBlank(
-                textOn(author, "getIpLabel", "ipLabel", "ip_label"),
                 textOn(author, "getIpLocation", "ipLocation", "ip_location"),
-                textValue(readSerializedField(author, "ip_location_string"))
+                textValue(readSerializedField(author, "ip_location_string")),
+                textOn(author, "getIpAttribution", "ipAttribution", "ip_attribution"),
+                textOn(author, "getIpLabel", "ipLabel", "ip_label")
         );
+    }
+
+    public static String simpleName(Object target) {
+        return target == null ? "" : target.getClass().getSimpleName();
     }
 
     public String poiName() {

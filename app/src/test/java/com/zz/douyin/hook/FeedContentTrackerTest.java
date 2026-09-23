@@ -332,6 +332,45 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
+    public void ipLocationBeatsIpLabel() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.ipLabel = "甲";
+        aweme.ipLoc = "乙";
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("乙", snapshot.ipLabel);
+    }
+
+    @Test
+    public void authorIpLocationFieldResolves() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.authorIpLocation = "丙";
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("丙", snapshot.ipLabel);
+    }
+
+    @Test
+    public void diagnosticsFieldsPopulated() throws Exception {
+        FeedContentTracker.Snapshot blank = snapshot(videoAweme(0));
+
+        assertEquals("FakeAweme", blank.awemeClass);
+        assertEquals("", blank.authorClass);
+        assertFalse(blank.poiFound);
+
+        FakeAweme aweme = videoAweme(0);
+        aweme.author = new FakeAuthor("广东");
+        aweme.poi = new FakePoi("春熙路");
+        FeedContentTracker.Snapshot filled = snapshot(aweme);
+
+        assertEquals("FakeAweme", filled.awemeClass);
+        assertEquals("FakeAuthor", filled.authorClass);
+        assertTrue(filled.poiFound);
+    }
+
+    @Test
     public void keywordMatchesVideoItemTitle() {
         FakeAweme aweme = videoAweme(0);
         aweme.itemTitle = "今天一起玩超级游戏";
@@ -530,6 +569,9 @@ public final class FeedContentTrackerTest {
         public Object poiStruct;
         @SerializedName("ip_location_string")
         public String ipLocationString;
+        @SerializedName("ip_location")
+        public String ipLoc;
+        public String authorIpLocation;
 
         public String getIpLabel() {
             return ipLabelMethod;

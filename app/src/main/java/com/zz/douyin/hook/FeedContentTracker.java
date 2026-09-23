@@ -234,6 +234,9 @@ public final class FeedContentTracker {
         String poiName = model.poiName();
         String location = model.location();
         String city = model.city();
+        String awemeClass = AwemeAccessor.simpleName(aweme);
+        String authorClass = AwemeAccessor.simpleName(model.author());
+        boolean poiFound = model.poi() != null;
         boolean photo =
                 hostImage
                         || hostMultiImage
@@ -308,6 +311,9 @@ public final class FeedContentTracker {
                 poiName,
                 location,
                 city,
+                awemeClass,
+                authorClass,
+                poiFound,
                 reason,
                 playUrls
         );
@@ -339,6 +345,9 @@ public final class FeedContentTracker {
         final String poiName;
         final String location;
         final String city;
+        final String awemeClass;
+        final String authorClass;
+        final boolean poiFound;
         final String filterReason;
         final List<PlayUrl> playUrls;
 
@@ -368,6 +377,9 @@ public final class FeedContentTracker {
                 String poiName,
                 String location,
                 String city,
+                String awemeClass,
+                String authorClass,
+                boolean poiFound,
                 String filterReason,
                 List<PlayUrl> playUrls
         ) {
@@ -396,6 +408,9 @@ public final class FeedContentTracker {
             this.poiName = poiName;
             this.location = location;
             this.city = city;
+            this.awemeClass = awemeClass;
+            this.authorClass = authorClass;
+            this.poiFound = poiFound;
             this.filterReason = filterReason;
             this.playUrls = playUrls;
         }

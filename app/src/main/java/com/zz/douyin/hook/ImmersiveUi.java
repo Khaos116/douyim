@@ -1677,7 +1677,10 @@ final class ImmersiveUi {
                         + " ipLabel=" + model.ipLabel
                         + " poi=" + model.poiName
                         + " location=" + model.location
-                        + " city=" + model.city);
+                        + " city=" + model.city
+                        + " awmCls=" + model.awemeClass
+                        + " authorCls=" + model.authorClass
+                        + " poiFound=" + model.poiFound);
             }
             return false;
         }

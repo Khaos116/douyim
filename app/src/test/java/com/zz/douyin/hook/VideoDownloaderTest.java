@@ -38,6 +38,7 @@ public final class VideoDownloaderTest {
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
                 -1L, -1L, "", "", "", "",
+                "", "", false,
                 null, playUrls);
     }
 }
