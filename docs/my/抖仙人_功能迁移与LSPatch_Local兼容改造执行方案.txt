@@ -1,0 +1,1907 @@
+抖仙人功能迁移与 LSPatch Local 兼容改造执行方案
+================================================
+
+文档用途
+--------
+本文件不是普通功能说明，而是给 Codex / Muse Code / Claude Code / Gemini CLI 等编程智能体直接读取并执行的“项目迁移任务书”。
+
+目标：
+1. Fork「抖仙人」作为唯一主工程。
+2. 从其他开源抖音 Xposed/LSPosed 项目中“参考并迁移”所需功能。
+3. 不把多个项目的 Hook 框架、配置框架、生命周期框架直接混在一起。
+4. 最终保持抖仙人的核心架构，并增加：
+   - 播放结束自动切换下一条
+   - 广告过滤
+   - 直播过滤
+   - 图文过滤
+   - 关键词过滤
+   - 长视频过滤（可选）
+   - 当前视频无水印下载
+   - MP3/音频下载
+   - 精确显示点赞数、评论数、收藏数、分享数
+   - 发布时间一直显示
+   - 发布地点/IP/POI 信息在数据存在时一直显示
+   - 文本颜色可配置
+   - 可选的 UI 常显/隐藏控制
+5. 以 LSPosed 正常运行作为第一基线，同时尽量兼容 LSPatch Local 本地模式。
+6. 所有新功能都必须支持单独关闭，并且 Hook 失败时尽量不影响抖音本体启动与播放。
+
+重要：本方案只用于客户端 UI、播放行为、内容过滤和本地媒体保存等功能，不要修改登录、支付、会员、风控、签名校验、设备认证、安全验证或其他访问控制逻辑。
+
+
+一、基线项目
+============
+
+主工程：
+https://github.com/1zzzzzlll/douyim
+
+项目：抖仙人
+
+当前核对基线（2026-09-23）：
+- LSPosed Modern API 102 模块
+- 最新仓库 README 提到 1.5.1
+- 模块包名：com.zz.douyin
+- 默认作用域：com.ss.android.ugc.aweme
+- JDK 21
+- Java 源码兼容 17
+- Android SDK 37
+- README 中当前核心结构大致为：
+
+app/src/main/java/com/zz/douyin/
+├── FilterPreferences.java
+├── MainActivity.java
+├── ModuleApplication.java
+└── hook/
+    ├── AudioTranscoder.java
+    ├── DouyinModule.java
+    ├── DoubleTapGuard.java
+    ├── FeedContentTracker.java
+    ├── ImmersiveUi.java
+    ├── Mp3Encoder.java
+    ├── PlaybackState.java
+    ├── PlayerHooks.java
+    └── VideoDownloader.java
+
+运行日志标签：
+DouyinImmersive
+
+构建验证命令：
+./gradlew clean lintRelease test assembleRelease
+
+Windows：
+gradlew.bat clean lintRelease test assembleRelease
+
+
+二、参考项目
+============
+
+参考项目 A：FreedomPlus
+----------------------
+仓库：
+https://github.com/earth10086/DouYinFreedomPlus
+
+用途：
+- 视频过滤实现参考
+- 直播过滤参考
+- 广告过滤参考
+- 长视频过滤参考
+- 文案关键词过滤参考
+- 无水印下载参考
+- UI 控件 Hook 参考
+- 首页清爽/沉浸 UI 参考
+
+原则：
+不要直接把 FreedomPlus 的整体框架搬入抖仙人。
+只提取：
+1. 目标类定位方法
+2. DexKit 查询条件
+3. Hook 点
+4. 数据字段读取方式
+5. UI View 识别方法
+6. 下载 URL 获取逻辑
+
+然后用抖仙人自己的架构重写。
+
+
+参考项目 B：Dou+
+----------------
+仓库：
+https://github.com/ldykxmm/dou-plus
+
+用途：
+- Aweme 获取
+- Feed Hook
+- 分享面板 Hook
+- 视频/图集媒体下载
+- URL 解析
+- MediaDownloader 设计参考
+
+尤其关注可能存在的：
+- FeedHook
+- ShareHook
+- DownloadHook
+- DownloadDialogHook
+- MediaDownloader
+- UrlParser
+
+原则同上：
+不要把它的 Hook 生命周期直接覆盖抖仙人。
+提取“数据流与实现思路”，重新挂接到抖仙人的 FeedContentTracker / PlayerHooks / VideoDownloader。
+
+
+参考项目 C：其他项目
+--------------------
+只有在 A/B 无法提供所需能力时，才继续搜索其他开源项目。
+
+新增参考库前必须先确认：
+1. 开源许可证
+2. 最后维护时间
+3. 支持的抖音版本
+4. Hook 框架
+5. 是否依赖 Root
+6. 是否强依赖旧版 Xposed API
+7. 是否可以只抽取目标功能
+
+不要为了一个小功能引入整套依赖。
+
+
+三、核心架构原则
+================
+
+整个项目只有一套主状态管理：
+
+DouyinModule
+    ↓
+FeedContentTracker
+    ↓
+当前 Aweme / 当前 Feed 状态
+    ↓
+PlaybackState
+    ↓
+PlayerHooks
+    ↓
+各 Feature
+
+禁止出现：
+
+FreedomPlusCurrentAweme
+DouPlusCurrentAweme
+DouXianRenCurrentAweme
+
+三套并存。
+
+最终统一成：
+
+FeedContentTracker
+    ├── currentAweme
+    ├── currentPosition（如果能可靠取得）
+    ├── currentFeedView / pager（如果能可靠取得）
+    └── 当前视频元数据
+
+然后其他模块只读取统一状态。
+
+
+四、建议新增目录结构
+====================
+
+建议在现有 hook 下逐步拆分：
+
+hook/
+├── DouyinModule.java
+├── FeedContentTracker.java
+├── PlaybackState.java
+├── PlayerHooks.java
+│
+├── feature/
+│   ├── AutoNextHook.java
+│   ├── ContentFilterHook.java
+│   ├── VideoInfoHook.java
+│   ├── FeedUiHook.java
+│   ├── ExactCountHook.java
+│   ├── PublishInfoHook.java
+│   └── DownloadHook.java
+│
+├── model/
+│   ├── AwemeAccessor.java
+│   ├── StatisticsAccessor.java
+│   └── PublishInfo.java
+│
+├── compat/
+│   ├── DouyinVersionCompat.java
+│   ├── HookResolver.java
+│   ├── ClassResolver.java
+│   └── FieldResolver.java
+│
+├── config/
+│   ├── ConfigProvider.java
+│   ├── LsposedConfigProvider.java
+│   ├── LocalConfigProvider.java
+│   └── FeatureConfig.java
+│
+└── util/
+    ├── ReflectUtils.java
+    ├── ViewUtils.java
+    ├── NumberFormatUtils.java
+    └── LogUtils.java
+
+不要一开始全部创建。
+按迁移功能需要逐步增加，防止过度设计。
+
+
+五、统一配置层
+==============
+
+当前抖仙人的配置方式优先保留。
+
+但为了兼容 LSPatch Local，不允许业务 Hook 直接到处调用某个特定 Preferences API。
+
+先抽象：
+
+interface ConfigProvider {
+    boolean isMasterEnabled();
+    boolean isAutoNextEnabled();
+    boolean isAdFilterEnabled();
+    boolean isLiveFilterEnabled();
+    boolean isImageFilterEnabled();
+    boolean isKeywordFilterEnabled();
+    boolean isLongVideoFilterEnabled();
+    boolean isExactCountEnabled();
+    boolean isPublishTimeEnabled();
+    boolean isPublishLocationEnabled();
+    boolean isCustomTextColorEnabled();
+
+    int getPrimaryTextColor();
+    int getSecondaryTextColor();
+    int getCountTextColor();
+    int getLocationTextColor();
+
+    long getLongVideoThresholdMs();
+}
+
+实现至少准备两层概念：
+
+1. LsposedConfigProvider
+   - 当前 LSPosed 正常模式
+   - 优先复用现有抖仙人设置同步机制
+
+2. LocalConfigProvider
+   - 为 LSPatch Local 准备
+   - 具体实现必须以实际运行测试结果决定
+   - 不要先假设 Modern API Remote Preferences 一定可用
+
+业务功能只调用：
+
+ConfigProvider config
+
+不直接依赖 Remote Preferences。
+
+
+六、功能一：播放完成自动下一条
+==============================
+
+目标：
+当前视频自然播放结束后，自动切换到下一条视频。
+
+配置：
+autoNextEnabled
+
+要求：
+- 默认关闭或沿用产品决定
+- 只处理正常 Feed 视频
+- 用户手动暂停不能触发
+- 拖动到末尾是否触发，应根据播放器真实 completion 回调区分
+- 广告/直播过滤产生的“下一条”不要再次重复触发
+- 防止同一视频结束事件多次触发
+- 切换后重置 completion 状态
+
+优先调查 PlayerHooks：
+1. 当前已经 Hook 哪些 TTVideoEngine / VideoEngineListener 回调
+2. 是否已有：
+   - onPrepared
+   - onPlay
+   - onPause
+   - onCompletion
+   - playback state
+3. 如果已有 completion 状态，只增加 AutoNextHook
+4. 不要重新 Hook 第二套播放器监听
+
+理想流程：
+
+播放器 completion
+    ↓
+PlaybackState.markCompleted()
+    ↓
+AutoNextHook.onCompleted()
+    ↓
+检查 config.autoNext
+    ↓
+检查当前内容不是过滤跳过中的临时状态
+    ↓
+debounce / once-per-aweme
+    ↓
+FeedNavigator.moveToNext()
+
+必须抽出统一：
+FeedNavigator.moveToNext(reason)
+
+reason 示例：
+AUTO_PLAY_FINISHED
+FILTER_AD
+FILTER_LIVE
+FILTER_IMAGE
+FILTER_KEYWORD
+FILTER_LONG_VIDEO
+
+这样所有“下一条”只走一个入口。
+
+
+七、统一 Next 导航
+==================
+
+如果当前抖仙人已经有广告/直播/关键词命中后的下一条逻辑：
+
+不要给 AutoNext 再写一套。
+
+抽取现有逻辑：
+
+FeedNavigator.moveToNext(reason)
+
+内部优先级：
+
+方案 A：
+调用抖音内部 Pager / Feed 方法
+
+方案 B：
+RecyclerView/ViewPager2/自研 Pager 滚到 position + 1
+
+方案 C：
+最后才考虑模拟滑动
+
+原则：
+尽量调用内部状态正确的切换方式，不优先使用 Accessibility 或屏幕坐标手势。
+
+需要加：
+- 500~1000ms 防重复窗口，具体根据测试调整
+- currentAweme identity 防重复
+- UI 主线程执行
+- 异常捕获
+
+
+八、功能二：广告过滤
+====================
+
+抖仙人已有能力时：
+优先保留原实现，不重新移植。
+
+AI 任务：
+1. 阅读 FeedContentTracker
+2. 找出广告判断条件
+3. 找出自动下一条实现
+4. 将其接到统一 FeedNavigator
+5. 确保广告过滤开关独立
+6. 确保关闭总开关时不生效
+
+如果现有识别不足，可参考 FreedomPlus 的 Aweme 广告字段判断。
+
+判断必须基于 Aweme 数据，不要只通过：
+- “广告”TextView
+- View ID
+- 屏幕文字 OCR
+
+UI 只是最后兜底。
+
+
+九、功能三：直播过滤
+====================
+
+抖仙人现有能力优先。
+
+需要验证：
+- Aweme 类型
+- live 标记
+- Room 数据
+- awemeType 等多个版本字段
+
+最终封装：
+
+boolean AwemeAccessor.isLive(Object aweme)
+
+业务层不要直接反射字段。
+
+一旦字段随抖音版本改变，只修改 AwemeAccessor。
+
+
+十、功能四：图文过滤
+====================
+
+沿用抖仙人已有逻辑。
+
+统一：
+AwemeAccessor.isImagePost(aweme)
+
+不要在多个 Feature 内重复反射。
+
+
+十一、功能五：关键词过滤
+========================
+
+沿用抖仙人已有功能。
+
+关键词来源统一：
+FeatureConfig.keywords
+
+检查字段可包括：
+- desc
+- title
+- itemTitle
+
+不要每次 bind 都进行复杂正则编译。
+如果支持正则，提前缓存 Pattern。
+普通关键词优先简单 contains。
+
+
+十二、功能六：长视频过滤
+========================
+
+参考 FreedomPlus。
+
+新增配置：
+longVideoFilterEnabled
+longVideoThresholdMs
+
+例如阈值由设置页决定。
+
+统一：
+long duration = AwemeAccessor.getDurationMs(aweme)
+
+如果 duration 不存在或异常：
+返回 UNKNOWN，不要误过滤。
+
+默认行为：
+未知时放行。
+
+
+十三、功能七：无水印视频下载
+============================
+
+抖仙人已有 VideoDownloader 时：
+它是主实现。
+
+AI 首先做差异分析：
+1. 抖仙人 VideoDownloader 已支持什么
+2. FreedomPlus 支持什么
+3. Dou+ 支持什么
+4. 只把缺失能力补入抖仙人
+
+不要为了功能更全直接替换整个 VideoDownloader。
+
+建议支持：
+- 当前普通视频 MP4
+- 图集（如果以后需要）
+- Live Photo（如果数据结构支持）
+- MP3
+- 下载进度
+- 下载错误提示
+
+URL 获取统一：
+AwemeAccessor.getPlayableUrls()
+AwemeAccessor.getDownloadUrls()
+
+下载器不要自己到处反射 Aweme。
+
+
+十四、功能八：精确人数显示
+==========================
+
+目标：
+把抖音 UI 中：
+
+1.2万
+3.4万
+10万+
+
+尽可能显示为：
+
+12,381
+34,052
+108,941
+
+需要：
+- 点赞
+- 评论
+- 收藏
+- 分享
+
+配置：
+exactCountEnabled
+
+不要反向解析“1.2万”。
+必须从 Aweme statistics 原始模型读取 long/int。
+
+新增：
+
+StatisticsAccessor
+
+接口概念：
+
+long getDiggCount(Object aweme)
+long getCommentCount(Object aweme)
+long getCollectCount(Object aweme)
+long getShareCount(Object aweme)
+
+UNKNOWN = -1
+
+NumberFormatUtils：
+formatExact(12381) -> "12,381"
+
+可增加设置：
+- 12381
+- 12,381
+
+不要用浮点缩写。
+
+
+十五、精确人数 Hook 策略
+========================
+
+优先顺序：
+
+A. 找到抖音负责统计数字 formatter 的方法
+   优点：
+   - 改动集中
+   - View 版本变化影响较小
+
+但必须确认 formatter 是否只用于首页统计数字。
+如果它是全局通用 formatter，不能直接全局修改。
+
+B. 找到 Feed action UI bind 方法
+   在 bind 当前 Aweme 时覆盖对应 TextView
+
+C. 最后才根据 View 层级寻找 TextView
+
+禁止：
+仅凭 TextView 当前文本为“1.2万”就判断它是点赞数。
+这样误伤风险太高。
+
+需要做：
+- 先 DexKit / 反射定位
+- 保存每个版本 resolver
+- Hook 失败时只停用 ExactCountFeature
+
+
+十六、功能九：发布时间一直显示
+============================
+
+配置：
+publishTimeEnabled
+
+目标显示示例：
+
+2026-09-23 15:32
+
+或者设置允许：
+
+2026-09-23
+09-23 15:32
+
+数据来源：
+Aweme 创建时间字段。
+
+新增：
+AwemeAccessor.getCreateTimeSeconds/Millis()
+
+必须判断单位：
+不要把秒当毫秒。
+
+格式化：
+使用设备时区，除非用户设置固定时区。
+
+PublishInfoHook：
+只负责把数据转换为文本。
+
+FeedUiHook：
+负责 View 的创建/显示。
+
+
+十七、功能十：发布地点一直显示
+==============================
+
+配置：
+publishLocationEnabled
+
+必须遵守：
+
+如果 Aweme 没有返回地点，显示：
+不显示
+
+不要：
+- 根据 IP 自行猜城市
+- 根据作者主页所在地冒充视频发布地
+- 根据 GPS 猜测
+- 根据 CDN 地址猜位置
+
+可调查的数据：
+- IP location label
+- city
+- region
+- POI
+- location
+- address
+- Aweme 中当前版本可取得的公开展示字段
+
+统一：
+
+PublishInfo resolvePublishInfo(Object aweme)
+
+PublishInfo:
+- createTime
+- ipLabel
+- poiName
+- city
+- displayLocation
+
+显示优先级可以为：
+
+POI > 视频明确 location > IP label > city
+
+但必须标注语义，避免把“IP属地”叫做“拍摄地点”。
+
+建议 UI：
+
+发布时间：2026-09-23 15:32
+IP属地：四川
+地点：春熙路（仅当 POI 确实存在）
+
+如果只有 IP：
+只显示“IP属地：四川”。
+
+
+十八、发布时间/地点 UI 策略
+===========================
+
+优先：
+
+1. 找到原生发布时间/地点 View
+2. 强制 visible
+3. 更新文本
+
+如果目标版本根本没有对应 View：
+
+创建一个非常轻量的 TextView/LinearLayout
+挂到稳定的 Feed metadata container 上。
+
+不要直接挂 DecorView。
+不要使用固定屏幕坐标。
+
+必须：
+- 给新 View 设置自定义 tag
+- bind 时先查 tag，避免重复添加
+- RecyclerView 复用时刷新数据
+- 视频切换时清理旧数据
+
+
+十九、功能十一：文本颜色修改
+============================
+
+需要支持至少：
+
+primaryTextColor
+secondaryTextColor
+countTextColor
+publishTimeColor
+locationTextColor
+
+设置页使用 Android Color Int 存储。
+
+FeedUiHook 统一应用。
+
+禁止让不同 Feature 各自 setTextColor。
+
+统一方法：
+
+FeedUiStyle.applyCountStyle(view)
+FeedUiStyle.applyTimeStyle(view)
+FeedUiStyle.applyLocationStyle(view)
+
+恢复默认：
+如果 customTextColorEnabled=false
+不覆盖抖音原样式。
+
+如果要支持“恢复默认”：
+不要把原色写死。
+第一次 Hook 时可缓存原 ColorStateList。
+
+
+二十、设置页
+============
+
+在 MainActivity / 当前设置页基础上增加，不换 UI 框架。
+
+建议顺序：
+
+【播放】
+- 功能总开关
+- 沉浸式播放
+- 播放结束自动下一条
+- 禁用双击
+
+【过滤】
+- 广告过滤
+- 直播过滤
+- 图文过滤
+- 关键词过滤
+- 长视频过滤
+- 长视频阈值
+
+【信息显示】
+- 显示精确人数
+- 常显发布时间
+- 常显 IP 属地/地点
+- 自定义文本颜色
+
+【下载】
+- 当前视频下载
+- MP3 下载
+- 其他后续功能
+
+【高级】
+- LSPatch Local 兼容模式（如果最终确实需要手工选择）
+- 调试日志
+- Hook 状态
+
+
+二十一、LSPatch Local 兼容目标
+==============================
+
+官方 LSPatch 仓库已经归档。
+因此：
+
+LSPatch Local = 兼容目标
+LSPosed = 开发基线
+
+不要反过来为了 LSPatch 先破坏 LSPosed。
+
+阶段：
+
+阶段 1：
+原版抖仙人在 LSPosed 正常运行。
+
+阶段 2：
+新功能在 LSPosed 全通过。
+
+阶段 3：
+再用 LSPatch Local 打包实际测试。
+
+LSPatch 测试项目：
+
+1. 模块是否加载
+2. module entry 是否执行
+3. scope 是否正确
+4. ClassLoader 是否正确
+5. DexKit 是否可用
+6. Preferences 是否可读取
+7. 抖音进程能否读模块配置
+8. 视频播放 Hook 是否执行
+9. Feed tracker 是否执行
+10. 下载是否有存储权限问题
+
+
+二十二、LSPatch 配置兼容
+========================
+
+如果 Remote Preferences 在 LSPatch Local 下不可用：
+
+不要让 AI 立刻重写整个项目。
+
+按以下顺序解决：
+
+方案 A：
+确认 LSPatch 当前实现是否已经能够读取现有 Remote Preferences。
+
+能用：
+不改。
+
+方案 B：
+引入 ConfigProvider，LSPatch 环境使用 LocalConfigProvider。
+
+方案 C：
+如果 Patch 后只能可靠访问抖音进程本地数据：
+建立只保存非敏感 Feature 配置的本地配置文件/SharedPreferences。
+
+注意：
+模块设置 App 与 patched 抖音是不同 UID 时，普通 SharedPreferences 不能直接跨 UID 读取。
+
+因此不要假设：
+“换 SharedPreferences 就好了”。
+
+必须基于实际进程、UID、Context 测试。
+
+严禁：
+使用 world-readable 等不安全旧方案。
+
+
+二十三、Hook Resolver
+=====================
+
+抖音升级后最容易坏的是类名和方法名。
+
+所有新增功能尽量经过 resolver：
+
+ExactCountResolver
+PublishInfoResolver
+FeedUiResolver
+PlayerResolver
+
+resolver 输出：
+- Class
+- Method
+- Field
+
+Feature 不自己到处 findClass。
+
+启动流程：
+
+DouyinModule
+    ↓
+resolve hooks
+    ↓
+打印 resolver 状态
+    ↓
+只安装成功解析的 Feature
+
+日志：
+
+[AutoNext] READY
+[ExactCount] READY
+[PublishInfo] FAILED: statistics field not found
+[FeedUi] READY
+
+一个 Feature 失败，其他 Feature 继续。
+
+
+二十四、版本兼容
+================
+
+不要写：
+
+if versionName == "40.5.0"
+
+到处散落。
+
+集中：
+
+DouyinVersionCompat
+
+记录：
+- versionName
+- versionCode
+
+如果某个版本需要不同 Hook：
+
+resolver.resolveV40()
+resolver.resolveLegacy()
+
+尽量基于运行时特征匹配而不是只靠版本号。
+
+
+二十五、DexKit 使用原则
+=======================
+
+如果抖仙人已有 DexKit：
+复用现有实例与缓存。
+
+不要每次视频切换重新扫描 Dex。
+
+所有 Dex 搜索：
+只在模块初始化/首次解析时运行。
+
+结果缓存。
+
+关键词：
+- 字符串特征
+- 参数类型
+- 返回值类型
+- 调用关系
+- 已知字段结构
+
+避免：
+只靠混淆方法名。
+
+
+二十六、线程要求
+================
+
+UI：
+主线程。
+
+下载：
+后台线程。
+
+反射：
+可初始化缓存。
+
+播放器回调：
+不要假设一定在主线程。
+
+自动下一条：
+切回 Main Looper。
+
+设置更新：
+避免阻塞 Feed bind。
+
+
+二十七、性能要求
+================
+
+Feed 每次 bind 是高频路径。
+
+禁止在 bind：
+- 扫 Dex
+- 遍历整个 ClassLoader
+- 读取大文件
+- 执行网络请求
+- 大量反射搜索
+
+允许：
+- 已缓存 Method.invoke
+- 已缓存 Field.get
+- 简单字符串格式化
+- View 更新
+
+
+二十八、稳定性要求
+==================
+
+所有新增 Feature Hook：
+
+try {
+    ...
+} catch (Throwable t) {
+    LogUtils.e(...)
+}
+
+但不要无脑把整个模块包一个巨大 try/catch。
+
+应按 Feature 隔离。
+
+如果 ExactCount 崩：
+禁用 ExactCount。
+
+不能导致整个 DouyinModule 安装失败。
+
+
+二十九、Feature Flag
+====================
+
+所有新功能必须单独开关。
+
+至少：
+
+FEATURE_AUTO_NEXT
+FEATURE_FILTER_AD
+FEATURE_FILTER_LIVE
+FEATURE_FILTER_IMAGE
+FEATURE_FILTER_KEYWORD
+FEATURE_FILTER_LONG_VIDEO
+FEATURE_DOWNLOAD_VIDEO
+FEATURE_DOWNLOAD_MP3
+FEATURE_EXACT_COUNT
+FEATURE_PUBLISH_TIME
+FEATURE_PUBLISH_LOCATION
+FEATURE_CUSTOM_TEXT_COLOR
+
+方便：
+- 二分定位崩溃
+- 抖音版本升级后临时关闭坏功能
+
+
+三十、迁移执行顺序
+==================
+
+AI 必须严格按以下顺序，不要一次性实现全部功能。
+
+PHASE 0：建立基线
+-----------------
+1. clone/fork 抖仙人
+2. 查看 git status
+3. 阅读 README
+4. 阅读 build.gradle/settings.gradle
+5. 阅读所有 hook 核心类
+6. 构建原版
+7. 不改代码先确认：
+   clean
+   test
+   lint
+   assembleRelease
+
+输出：
+BASELINE.md 或聊天总结
+
+内容：
+- 架构
+- 配置
+- 当前 Aweme 如何取得
+- 播放状态如何跟踪
+- 下一条如何实现
+- 下载如何实现
+- 过滤如何实现
+
+
+PHASE 1：统一导航
+-----------------
+目标：
+把现有各种过滤“下一条”抽成 FeedNavigator。
+
+完成：
+- FeedNavigator.moveToNext(reason)
+- 原广告过滤改用它
+- 原直播过滤改用它
+- 原图文过滤改用它
+- 原关键词过滤改用它
+
+验收：
+原有功能行为不变。
+
+提交：
+refactor: unify feed navigation
+
+
+PHASE 2：自动下一条
+-------------------
+只做：
+播放完成 -> FeedNavigator
+
+不要同时做 UI。
+
+验收：
+1. 普通视频完整播放
+2. 只跳一次
+3. 暂停不跳
+4. 手动上滑不异常
+5. 来回切视频不重复
+6. 关闭开关完全恢复原行为
+
+提交：
+feat: add auto next after playback completion
+
+
+PHASE 3：Aweme 数据抽象
+-----------------------
+创建 AwemeAccessor / StatisticsAccessor。
+
+先把：
+- currentAweme
+- duration
+- live
+- image
+- ad
+- description
+- statistics
+- createTime
+- location candidates
+统一封装。
+
+不要改变 UI。
+
+提交：
+refactor: add aweme data accessors
+
+
+PHASE 4：精确人数
+-----------------
+只实现：
+- 点赞
+- 评论
+- 收藏
+- 分享
+
+先把日志打印正确，再接 UI。
+
+验收：
+选几条视频人工对比 Aweme 原始值与 UI。
+
+提交：
+feat: show exact engagement counts
+
+
+PHASE 5：发布时间
+-----------------
+先实现 createTime 解析。
+再实现 UI。
+
+验收：
+对比视频实际发布时间。
+
+提交：
+feat: keep publish time visible
+
+
+PHASE 6：地点/IP属地
+--------------------
+先打印：
+- IP label
+- POI
+- location
+- city
+
+确认真实字段后才做 UI。
+
+不得根据不存在的数据猜测。
+
+提交：
+feat: show available publish location metadata
+
+
+PHASE 7：颜色
+-------------
+基于已经稳定的 UI refs 实现。
+
+验收：
+- 开启覆盖
+- 关闭恢复
+- RecyclerView 重用不串色
+
+提交：
+feat: add configurable feed text colors
+
+
+PHASE 8：长视频过滤
+-------------------
+参考 FreedomPlus。
+
+只移植判断思路。
+接统一 FeedNavigator。
+
+提交：
+feat: add long video filter
+
+
+PHASE 9：下载增强
+-----------------
+做差异分析后决定。
+
+不要无理由重写抖仙人 VideoDownloader。
+
+提交按具体能力拆分。
+
+
+PHASE 10：LSPatch Local
+-----------------------
+全部 LSPosed 功能稳定后再做。
+
+先打一个完全没有额外修改的模块测试 LSPatch。
+
+逐项记录：
+
+[ ] module load
+[ ] config
+[ ] filter
+[ ] playback
+[ ] auto next
+[ ] exact count
+[ ] publish info
+[ ] colors
+[ ] video download
+[ ] mp3
+
+只有发生真实兼容问题时才写兼容代码。
+
+
+三十一、每个 Phase 的标准工作流
+==============================
+
+AI 每完成一个 Phase 都必须：
+
+1. 查看 git diff
+2. 编译
+3. 运行单元测试
+4. lint
+5. assembleDebug 或 assembleRelease
+6. 检查是否引入重复依赖
+7. 检查是否修改了无关代码
+8. 输出：
+   - 修改文件
+   - 核心逻辑
+   - 风险点
+   - 需要真机验证的项目
+9. 提交 Git
+
+禁止把 8 个功能塞进一个 commit。
+
+
+三十二、Git 规范
+================
+
+建议 branch：
+
+feature/douyin-enhancement
+
+或按功能：
+
+feature/auto-next
+feature/exact-count
+feature/publish-info
+feature/lspatch-local
+
+Commit：
+
+refactor: unify feed navigation
+feat: add auto next after playback completion
+refactor: add aweme data accessors
+feat: show exact engagement counts
+feat: keep publish time visible
+feat: show available publish metadata
+feat: add configurable text colors
+feat: add long video filter
+fix: support local config under lspatch
+
+一个 commit 只做一件主要事情。
+
+
+三十三、严禁事项
+================
+
+AI 不允许：
+
+1. 一开始重写整个抖仙人。
+2. 把 FreedomPlus 整个 module copy 进来。
+3. 同时存在三套 currentAweme。
+4. 同时存在三套播放器监听。
+5. 每个功能自己实现“下一条”。
+6. 在 Feed bind 高频 Dex 扫描。
+7. 写死大量混淆类名而不做 resolver。
+8. 单个 Feature 失败导致模块整体失败。
+9. 为了 LSPatch 未验证的问题提前大改。
+10. 把“IP属地”标成“拍摄地点”。
+11. 对没有 location 数据的视频伪造地点。
+12. 通过网络额外上传视频信息。
+13. 修改账号登录、支付、会员、安全验证、风控等逻辑。
+14. 未核对开源许可证就大段复制源码。
+15. 删除原作者版权/License 声明。
+
+
+三十四、开源许可证要求
+======================
+
+在真正复制代码前：
+
+对每个参考仓库检查：
+LICENSE
+README
+文件头
+
+如果许可证允许：
+按许可证要求保留 notice / attribution。
+
+如果许可证不明确：
+优先只参考思路，自行重写实现。
+
+不要直接复制大量代码后再处理许可证。
+
+
+三十五、真机测试矩阵
+====================
+
+至少准备：
+
+A. LSPosed 环境
+- 主测试
+
+B. LSPatch Local
+- 最终兼容测试
+
+抖音：
+- 当前目标版本，例如 40.5.0
+- 后续可再测试一个邻近版本
+
+场景：
+
+普通视频：
+[ ] 播放
+[ ] 暂停
+[ ] 恢复
+[ ] 播完
+[ ] 上滑
+[ ] 下滑
+[ ] 双击
+[ ] 长按
+
+过滤：
+[ ] 广告
+[ ] 直播
+[ ] 图文
+[ ] 关键词
+[ ] 长视频
+
+信息：
+[ ] 点赞
+[ ] 评论
+[ ] 收藏
+[ ] 分享
+[ ] 时间
+[ ] IP属地
+[ ] POI
+
+下载：
+[ ] 视频
+[ ] MP3
+[ ] 下载失败
+[ ] 网络切换
+
+生命周期：
+[ ] 冷启动
+[ ] 热启动
+[ ] 后台恢复
+[ ] 锁屏恢复
+[ ] 横竖屏（如果抖音当前页面允许）
+[ ] 杀进程重开
+
+
+三十六、日志规范
+================
+
+统一日志 tag 可继续使用：
+DouyinImmersive
+
+增加 Feature prefix：
+
+[AutoNext]
+[Filter]
+[Aweme]
+[Statistics]
+[PublishInfo]
+[FeedUi]
+[Download]
+[LSPatch]
+
+示例：
+
+[AutoNext] completion aweme=xxx
+[AutoNext] moveNext reason=AUTO_PLAY_FINISHED
+[Statistics] digg=12381 comment=582
+[PublishInfo] createTime=...
+[PublishInfo] ipLabel=四川 poi=null
+[ExactCount] resolver ready
+[LSPatch] config provider=LocalConfigProvider
+
+禁止日志输出：
+- cookie
+- token
+- 登录凭证
+- 私密账号数据
+
+
+三十七、AI 执行时的调查清单
+==========================
+
+在写代码前，AI 必须回答：
+
+1. 抖仙人当前如何获得 currentAweme？
+2. FeedContentTracker 生命周期是什么？
+3. PlaybackState 保存什么？
+4. PlayerHooks Hook 了什么类/方法？
+5. 现有过滤如何触发下一条？
+6. VideoDownloader 从哪里取得 URL？
+7. FilterPreferences 如何同步设置？
+8. MainActivity 设置页如何写值？
+9. Modern API module entry 在哪里？
+10. 哪些类/方法使用 DexKit？
+11. 哪些 Hook 在 UI 主线程？
+12. 当前项目如何处理版本变化？
+
+如果不能回答：
+先继续读代码。
+不要直接开发。
+
+
+三十八、参考仓库调查清单
+======================
+
+对于 FreedomPlus：
+
+只搜索这些目标：
+- ad
+- live
+- long video
+- keyword
+- download
+- aweme
+- statistics
+- digg
+- comment
+- collect
+- share
+- createTime
+- location
+- poi
+
+记录：
+文件路径
+类名
+Hook 点
+实现思想
+依赖
+
+然后决定：
+REUSE IDEA
+PORT SMALL CODE
+DO NOT PORT
+
+
+对于 Dou+：
+
+重点：
+- FeedHook
+- DownloadHook
+- ShareHook
+- MediaDownloader
+- UrlParser
+- Aweme model access
+
+同样先形成对照表，再写代码。
+
+
+三十九、功能映射表
+================
+
+主工程能力：
+抖仙人
+
+功能                          来源优先级
+------------------------------------------------
+广告过滤                      抖仙人现有
+直播过滤                      抖仙人现有
+图文过滤                      抖仙人现有
+关键词过滤                    抖仙人现有
+沉浸播放                      抖仙人现有
+视频下载                      抖仙人现有
+MP3                           抖仙人现有
+自动下一条                    抖仙人 PlayerHooks + 新实现
+长视频过滤                    FreedomPlus 参考
+精确人数                      自研 + 参考其他项目字段定位
+发布时间                      自研
+IP属地/POI                    自研
+文本颜色                      自研 + FreedomPlus UI Hook 参考
+下载增强                      Dou+ / FreedomPlus 按需参考
+LSPatch Local                 独立兼容阶段
+
+
+四十、最终目标架构
+=================
+
+DouyinModule
+│
+├── ConfigProvider
+│
+├── HookResolver
+│
+├── FeedContentTracker
+│      └── currentAweme
+│
+├── AwemeAccessor
+│      ├── StatisticsAccessor
+│      └── PublishInfo
+│
+├── PlaybackState
+│
+├── PlayerHooks
+│      └── AutoNextHook
+│
+├── FeedNavigator
+│      ├── AUTO_PLAY_FINISHED
+│      ├── FILTER_AD
+│      ├── FILTER_LIVE
+│      ├── FILTER_IMAGE
+│      ├── FILTER_KEYWORD
+│      └── FILTER_LONG_VIDEO
+│
+├── ContentFilterHook
+│
+├── VideoInfoHook
+│      ├── ExactCount
+│      ├── PublishTime
+│      └── PublishLocation
+│
+├── FeedUiHook
+│      └── FeedUiStyle
+│
+└── VideoDownloader
+
+
+四十一、完成标准
+================
+
+项目只有同时满足以下条件才叫“完成”：
+
+1. LSPosed 正常启动无崩溃。
+2. 原抖仙人功能没有明显回归。
+3. 广告过滤正常。
+4. 直播过滤正常。
+5. 图文过滤正常。
+6. 关键词过滤正常。
+7. 播放完成自动下一条正常。
+8. 不会连续跳两条。
+9. 精确统计数字来自原始模型。
+10. RecyclerView 复用不会显示上一条视频数字。
+11. 发布时间与当前视频一致。
+12. 没有地点时不伪造。
+13. IP属地与 POI 语义区分。
+14. 文本颜色关闭后恢复原样。
+15. 下载正常。
+16. MP3 正常。
+17. 所有新 Feature 可单独关闭。
+18. 单 Feature resolver 失效不会拖垮抖音。
+19. clean/test/lint/assemble 通过。
+20. LSPatch Local 测试有明确结果。
+21. 如果 LSPatch 某能力不兼容，有明确 fallback 或标记为 unsupported，而不是静默异常。
+
+
+四十二、给编程 AI 的直接执行指令
+================================
+
+下面这一段可以直接复制给 Codex / Muse Code / Claude Code：
+
+------------------------------------------------------------
+
+你正在维护一个 Android LSPosed 项目。
+
+主工程是我 Fork 的「抖仙人」：
+https://github.com/1zzzzzlll/douyim
+
+你的任务不是重写项目，而是在保持抖仙人现有架构的前提下，逐步增加功能。
+
+参考项目：
+1. FreedomPlus
+   https://github.com/earth10086/DouYinFreedomPlus
+
+2. Dou+
+   https://github.com/ldykxmm/dou-plus
+
+参考仓库只用于分析和迁移目标功能。
+禁止直接把另一个项目整套 Hook 框架复制到抖仙人。
+抖仙人的 FeedContentTracker、PlaybackState、PlayerHooks、VideoDownloader、配置体系必须保持为主干。
+
+目标功能：
+1. 播放结束自动切换下一条。
+2. 保持广告过滤。
+3. 保持直播过滤。
+4. 保持图文过滤。
+5. 保持关键词过滤。
+6. 增加长视频过滤。
+7. 保持/增强无水印视频下载。
+8. 保持 MP3 下载。
+9. 显示精确点赞人数。
+10. 显示精确评论人数。
+11. 显示精确收藏人数。
+12. 显示精确分享人数。
+13. 发布时间一直显示。
+14. 数据存在时显示 IP 属地/POI/地点；禁止伪造不存在的位置。
+15. 支持相关文本颜色自定义。
+16. 最终尽量兼容 LSPatch Local。
+
+重要约束：
+
+A. 首先完整阅读当前项目。
+在任何功能开发前，明确：
+- currentAweme 如何获得
+- FeedContentTracker 如何工作
+- PlaybackState 如何工作
+- PlayerHooks Hook 了什么
+- 现有过滤如何切下一条
+- VideoDownloader 如何得到 URL
+- FilterPreferences 如何同步
+- 模块 Modern API 入口在哪里
+
+B. 先运行原版构建：
+clean
+test
+lintRelease
+assembleRelease
+
+原版构建通过后再修改。
+
+C. 必须按 Phase 开发，一次只做一个 Phase：
+
+Phase 1：
+统一现有“下一条”行为为 FeedNavigator.moveToNext(reason)。
+
+Phase 2：
+基于现有播放器 completion 状态实现自动下一条。
+
+Phase 3：
+创建 AwemeAccessor / StatisticsAccessor，统一 Aweme 数据读取。
+
+Phase 4：
+实现精确点赞/评论/收藏/分享人数。
+
+Phase 5：
+实现发布时间常显。
+
+Phase 6：
+实现 IP属地/POI/地点显示。
+
+Phase 7：
+实现文本颜色配置。
+
+Phase 8：
+参考 FreedomPlus 实现长视频过滤。
+
+Phase 9：
+比较抖仙人、FreedomPlus、Dou+ 下载能力，只补缺失能力。
+
+Phase 10：
+所有 LSPosed 功能稳定之后，再实际测试 LSPatch Local。
+
+D. 不允许：
+- 创建第二套 currentAweme 状态
+- 创建第二套播放器生命周期
+- 每个过滤功能自己实现切下一条
+- 在 Feed bind 时扫描 Dex
+- 把其他项目整个 module 复制进来
+- 大范围无关重构
+- 未验证 LSPatch 问题就提前改架构
+
+E. 所有 Feature 必须单独开关。
+
+F. 所有新增 Hook 都要故障隔离。
+一个 Feature 失效不能导致抖音整个进程崩溃。
+
+G. 精确人数必须读取 Aweme statistics 原始数字，禁止从“1.2万”等 UI 文本反解析。
+
+H. 发布时间必须使用 Aweme 原始 createTime。
+
+I. 地点只显示模型真实存在的数据：
+- IP属地必须叫 IP属地
+- POI 才可以作为地点
+- 没有数据则隐藏
+禁止猜测。
+
+J. 如果要复制开源实现代码，先检查 LICENSE。
+许可证不明确时，只参考思路并自行重写。
+
+K. 每完成一个 Phase：
+1. git diff
+2. 构建
+3. test
+4. lint
+5. 输出修改文件和风险
+6. 真机测试说明
+7. 单独 commit
+
+L. 不要修改账号登录、支付、会员、风控、签名校验、安全验证、设备认证等访问控制逻辑。
+
+现在先不要修改代码。
+
+第一步：
+完整阅读主工程结构和上述三个核心类群，输出：
+1. 当前架构图
+2. currentAweme 数据流
+3. playback 数据流
+4. filter -> next 数据流
+5. download 数据流
+6. preferences 数据流
+7. 建议新增/修改的文件列表
+8. Phase 1 的最小改造方案
+
+确认分析完成后，再开始 Phase 1。
+
+------------------------------------------------------------
+
+
+四十三、给 AI 的第二阶段指令
+===========================
+
+当 AI 已经完成项目分析，可以发送：
+
+------------------------------------------------------------
+
+按照任务书开始 Phase 1。
+
+要求：
+只做 FeedNavigator 的统一，不增加任何新功能。
+
+目标：
+把广告、直播、图文、关键词等已有过滤中的“切换下一条”统一到：
+
+FeedNavigator.moveToNext(reason)
+
+定义明确 reason。
+
+确保：
+- 行为与改造前一致
+- UI 主线程安全
+- 防重复
+- 不修改播放器
+- 不修改下载
+- 不修改 UI
+- 不修改配置格式
+
+完成后运行：
+clean
+test
+lintRelease
+assembleRelease
+
+然后给我：
+1. git diff 摘要
+2. 修改文件
+3. 为什么这样设计
+4. 是否存在兼容风险
+5. 真机应测试什么
+6. 建议 commit message
+
+不要继续 Phase 2，等我确认。
+
+------------------------------------------------------------
+
+
+四十四、自动下一条阶段指令
+========================
+
+------------------------------------------------------------
+
+执行 Phase 2：播放结束自动下一条。
+
+只能使用现有 PlayerHooks / PlaybackState 作为播放状态主来源。
+不要新建第二套播放器 Hook。
+
+目标：
+播放器真实 completion
+-> AutoNextHook
+-> FeedNavigator.moveToNext(AUTO_PLAY_FINISHED)
+
+需要：
+- Feature 开关
+- 同一 Aweme 只触发一次
+- 暂停不触发
+- 普通手动滑动不误触发
+- 过滤跳过不会造成二次跳转
+- 新视频开始后重置状态
+- 主线程切换 Feed
+
+完成后停止，不继续后续 Phase。
+
+------------------------------------------------------------
+
+
+四十五、精确人数阶段指令
+========================
+
+------------------------------------------------------------
+
+执行 AwemeAccessor / StatisticsAccessor + 精确人数。
+
+先不要修改 UI。
+
+第一步先在日志中证明当前 Aweme 可以可靠读取：
+
+diggCount
+commentCount
+collectCount
+shareCount
+
+选至少数条视频验证不同数量级。
+
+确认字段可靠之后，再找到 Feed 对应数字 UI 的稳定 bind 点。
+
+优先：
+业务 bind method
+其次：
+明确的目标 View
+禁止：
+仅根据 TextView 当前文字匹配。
+
+最终开启 exactCountEnabled 时显示完整数字。
+关闭时完全保留抖音默认格式。
+
+------------------------------------------------------------
+
+
+四十六、发布时间/地点阶段指令
+============================
+
+------------------------------------------------------------
+
+执行 PublishInfo。
+
+先只读取数据和打印日志，不创建 UI。
+
+需要识别：
+createTime
+IP label
+POI
+city/location 等当前抖音版本真实存在的字段。
+
+记录每个字段：
+- 类型
+- 单位
+- 是否所有视频存在
+- 含义
+
+确认后实现 UI。
+
+必须严格区分：
+发布时间
+IP属地
+POI/地点
+
+没有数据就隐藏，不能猜。
+
+------------------------------------------------------------
+
+
+四十七、LSPatch 阶段指令
+=======================
+
+------------------------------------------------------------
+
+现在所有 LSPosed 功能已经稳定。
+
+开始 LSPatch Local 兼容验证。
+
+不要先修改代码。
+
+先使用当前 APK + 当前 LSPatch Local 测试，并记录：
+
+1. 模块入口是否执行
+2. Hook 是否安装
+3. ClassLoader
+4. currentAweme
+5. filter
+6. playback
+7. auto next
+8. preferences
+9. exact count
+10. publish info
+11. download
+
+通过日志找到第一个真正失败点。
+
+只有确认失败原因后才修改。
+
+如果问题来自配置：
+先抽象 ConfigProvider。
+
+不要假设普通 SharedPreferences 可以跨 UID。
+不要使用不安全的 world-readable preferences。
+
+每次只解决一个 LSPatch 兼容问题。
+
+------------------------------------------------------------
+
+
+四十八、最终原则
+================
+
+这次项目不要追求“移植最多代码”。
+
+真正目标是：
+
+抖仙人 = 稳定核心
+FreedomPlus = 功能参考
+Dou+ = 下载/Feed 数据参考
+
+最终产物仍然应该看起来像“增强版抖仙人”，
+而不是把三个项目硬拼到一起。
+
+最重要的三个技术目标：
+
+1. currentAweme 只有一个来源。
+2. 切换下一条只有一个入口。
+3. 抖音版本变化时，只需要优先修 resolver/accessor，而不是重写所有 Feature。
+
+
+资料核对日期
+============
+
+2026-09-23
+
+核对来源：
+- https://github.com/1zzzzzlll/douyim
+- https://github.com/earth10086/DouYinFreedomPlus
+- https://github.com/ldykxmm/dou-plus
+- https://github.com/LSPosed/LSPatch
+
+补充说明：
+官方 LSPosed/LSPatch 仓库当前为 archived/read-only 状态。
+因此 LSPatch Local 相关部分必须以实际打包和真机运行结果为准，不应假设所有 LSPosed Modern API 能力均完全一致。
