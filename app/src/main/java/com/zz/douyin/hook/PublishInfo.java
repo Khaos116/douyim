@@ -58,10 +58,12 @@ final class PublishInfo {
         View host = overlayDecor.get();
         if (content == null) {
             removeOverlay(view);
+            overlay.clear();
+            overlayDecor.clear();
             lastText = null;
             return;
         }
-        if (view == null || host != decor) {
+        if (view == null || host != decor || view.getParent() == null) {
             removeOverlay(view);
             view = createOverlay(decor);
             overlay = new WeakReference<>(view);
