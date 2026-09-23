@@ -47,6 +47,9 @@ public final class MainActivity extends Activity
     private Switch publishLocation;
     private Switch customColors;
     private Switch copyLink;
+    private Switch hidePublish;
+    private EditText hideTabsInput;
+    private Button saveHideTabs;
     private EditText countColorInput;
     private EditText timeColorInput;
     private EditText locationColorInput;
@@ -249,6 +252,63 @@ public final class MainActivity extends Activity
         colorCardParams.topMargin = dp(10);
         root.addView(colorCard, colorCardParams);
 
+        TextView uiHeader = sectionTitle("界面元素");
+        LinearLayout.LayoutParams uiHeaderParams = matchWrap();
+        uiHeaderParams.topMargin = dp(28);
+        root.addView(uiHeader, uiHeaderParams);
+
+        LinearLayout uiCard = card();
+        hidePublish = addSwitch(uiCard, "隐藏底部发布按钮",
+                "隐藏底部中央的“+”发布按钮；识别失败时不隐藏任何元素",
+                FilterPreferences.KEY_HIDE_PUBLISH);
+        addDivider(uiCard);
+        TextView hideTabsHint = text(
+                "顶部 TAB 隐藏关键词：命中任意词的顶部短文本会被隐藏。支持换行、逗号或分号分隔，留空即不隐藏。",
+                14,
+                TEXT_SECONDARY
+        );
+        hideTabsHint.setLineSpacing(0, 1.25f);
+        LinearLayout.LayoutParams hideTabsHintParams = matchWrap();
+        hideTabsHintParams.topMargin = dp(14);
+        uiCard.addView(hideTabsHint, hideTabsHintParams);
+
+        hideTabsInput = new EditText(this);
+        hideTabsInput.setTextColor(TEXT_PRIMARY);
+        hideTabsInput.setHintTextColor(Color.rgb(112, 114, 123));
+        hideTabsInput.setTextSize(16);
+        hideTabsInput.setHint("例如：商城\n精选");
+        hideTabsInput.setGravity(Gravity.TOP | Gravity.START);
+        hideTabsInput.setMinLines(2);
+        hideTabsInput.setMaxLines(5);
+        hideTabsInput.setInputType(
+                InputType.TYPE_CLASS_TEXT
+                        | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                        | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        );
+        GradientDrawable hideTabsBackground = rounded(Color.rgb(38, 39, 45), 12);
+        hideTabsBackground.setStroke(dp(1), Color.rgb(58, 60, 68));
+        hideTabsInput.setBackground(hideTabsBackground);
+        hideTabsInput.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams hideTabsInputParams = matchWrap();
+        hideTabsInputParams.topMargin = dp(14);
+        uiCard.addView(hideTabsInput, hideTabsInputParams);
+
+        saveHideTabs = new Button(this);
+        saveHideTabs.setText("保存 TAB 关键词");
+        saveHideTabs.setTextColor(Color.WHITE);
+        saveHideTabs.setTextSize(15);
+        saveHideTabs.setAllCaps(false);
+        saveHideTabs.setBackground(rounded(PRIMARY, 12));
+        saveHideTabs.setOnClickListener(view -> saveHideTabsSettings());
+        LinearLayout.LayoutParams saveHideTabsParams = matchWrap();
+        saveHideTabsParams.topMargin = dp(14);
+        saveHideTabsParams.height = dp(48);
+        uiCard.addView(saveHideTabs, saveHideTabsParams);
+
+        LinearLayout.LayoutParams uiCardParams = matchWrap();
+        uiCardParams.topMargin = dp(10);
+        root.addView(uiCard, uiCardParams);
+
         TextView keywordHeader = sectionTitle("视频关键词");
         LinearLayout.LayoutParams keywordHeaderParams = matchWrap();
         keywordHeaderParams.topMargin = dp(28);
@@ -364,6 +424,9 @@ public final class MainActivity extends Activity
         publishLocation.setChecked(FilterPreferences.readPublishLocation(preferences));
         customColors.setChecked(FilterPreferences.readCustomTextColors(preferences));
         copyLink.setChecked(FilterPreferences.readCopyLink(preferences));
+        hidePublish.setChecked(FilterPreferences.readHidePublish(preferences));
+        hideTabsInput.setText(FilterPreferences.readHideTabs(preferences));
+        hideTabsInput.setSelection(hideTabsInput.length());
         countColorInput.setText(
                 com.zz.douyin.hook.FeedUiStyle.toHex(
                         FilterPreferences.readCountTextColor(preferences)));
@@ -458,6 +521,24 @@ public final class MainActivity extends Activity
         Toast.makeText(this, "阈值已保存", Toast.LENGTH_SHORT).show();
     }
 
+    private void saveHideTabsSettings() {
+        SharedPreferences current = preferences;
+        if (current == null) {
+            Toast.makeText(this, "未连接 LSPosed 服务", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        SharedPreferences.Editor editor = current.edit();
+        if (editor == null) {
+            Toast.makeText(this, "设置保存失败", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        editor.putString(
+                FilterPreferences.KEY_HIDE_TABS,
+                hideTabsInput.getText().toString().trim()
+        ).apply();
+        Toast.makeText(this, "TAB 关键词已保存", Toast.LENGTH_SHORT).show();
+    }
+
     private void saveKeywordSettings() {
         SharedPreferences current = preferences;
         if (current == null) {
@@ -495,6 +576,10 @@ public final class MainActivity extends Activity
         publishLocation.setEnabled(enabled);
         customColors.setEnabled(enabled);
         copyLink.setEnabled(enabled);
+        hidePublish.setEnabled(enabled);
+        hideTabsInput.setEnabled(enabled);
+        saveHideTabs.setEnabled(enabled);
+        saveHideTabs.setAlpha(enabled ? 1f : 0.45f);
         countColorInput.setEnabled(enabled);
         timeColorInput.setEnabled(enabled);
         locationColorInput.setEnabled(enabled);

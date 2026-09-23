@@ -59,6 +59,9 @@ final class ImmersiveUi {
     private static volatile boolean publishLocationEnabled = true;
     private static volatile boolean customColorsEnabled;
     private static volatile boolean copyLinkEnabled = true;
+    private static volatile boolean hidePublishEnabled;
+    private static volatile List<String> hideTabKeywords =
+            Collections.emptyList();
     private static volatile int countTextColor = 0xFFFFFFFF;
     private static volatile int publishTimeColor = 0xFFFFFFFF;
     private static volatile int locationTextColor = 0xFFFFFFFF;
@@ -145,6 +148,9 @@ final class ImmersiveUi {
         publishTimeColor = com.zz.douyin.FilterPreferences.readPublishTimeColor(preferences);
         locationTextColor = com.zz.douyin.FilterPreferences.readLocationTextColor(preferences);
         copyLinkEnabled = com.zz.douyin.FilterPreferences.readCopyLink(preferences);
+        hidePublishEnabled = com.zz.douyin.FilterPreferences.readHidePublish(preferences);
+        hideTabKeywords = FeedUiHider.parseKeywords(
+                com.zz.douyin.FilterPreferences.readHideTabs(preferences));
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
         MAIN.post(() -> {
             if (changed) {
@@ -158,6 +164,7 @@ final class ImmersiveUi {
             if (!moduleEnabled) {
                 removeDownloadButton();
                 removeCopyLinkButton();
+                FeedUiHider.restoreAll();
                 VideoDownloader.dismissChooser();
                 Activity activity = activeActivity();
                 restoreAll(activity, activeDecor(activity));
@@ -541,6 +548,7 @@ final class ImmersiveUi {
         if (!moduleEnabled) {
             removeDownloadButton();
             removeCopyLinkButton();
+            FeedUiHider.restoreAll();
             restoreAll(activity, decor);
             scheduleScan(500L);
             return;
@@ -588,6 +596,9 @@ final class ImmersiveUi {
         } else {
             PublishInfo.remove();
         }
+
+        FeedUiHider.applyPublishHide(decor, hidePublishEnabled);
+        FeedUiHider.applyTabHide(decor, hideTabKeywords);
 
         boolean keepUiHidden = immersiveEnabled && PlaybackState.shouldKeepUiHidden();
         RenderViews realVideos =

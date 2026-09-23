@@ -31,6 +31,8 @@ public final class FilterPreferences {
     public static final String KEY_PUBLISH_TIME_COLOR = "publish_time_color";
     public static final String KEY_LOCATION_TEXT_COLOR = "location_text_color";
     public static final String KEY_COPY_LINK = "copy_link";
+    public static final String KEY_HIDE_PUBLISH = "hide_publish";
+    public static final String KEY_HIDE_TABS = "hide_tabs";
 
     public static final boolean DEFAULT_SKIP_ADS = true;
     public static final boolean DEFAULT_SKIP_IMAGES = true;
@@ -48,6 +50,8 @@ public final class FilterPreferences {
     public static final int DEFAULT_PUBLISH_TIME_COLOR = 0xFFFFFFFF;
     public static final int DEFAULT_LOCATION_TEXT_COLOR = 0xFFFFFFFF;
     public static final boolean DEFAULT_COPY_LINK = true;
+    public static final boolean DEFAULT_HIDE_PUBLISH = false;
+    public static final String DEFAULT_HIDE_TABS = "";
 
     private FilterPreferences() {
     }
@@ -149,6 +153,19 @@ public final class FilterPreferences {
         return preferences == null
                 ? DEFAULT_COPY_LINK
                 : preferences.getBoolean(KEY_COPY_LINK, DEFAULT_COPY_LINK);
+    }
+
+    public static boolean readHidePublish(SharedPreferences preferences) {
+        return preferences != null
+                && preferences.getBoolean(KEY_HIDE_PUBLISH, DEFAULT_HIDE_PUBLISH);
+    }
+
+    public static String readHideTabs(SharedPreferences preferences) {
+        if (preferences == null) {
+            return DEFAULT_HIDE_TABS;
+        }
+        String raw = preferences.getString(KEY_HIDE_TABS, DEFAULT_HIDE_TABS);
+        return raw == null ? DEFAULT_HIDE_TABS : raw;
     }
 
     public static final class Values {
