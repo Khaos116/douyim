@@ -1,5 +1,6 @@
 package com.zz.douyin.hook;
 
+import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -19,7 +20,9 @@ import java.util.WeakHashMap;
  * in the bottom-center area and be small, and tabs only match short texts in
  * the top strip. Anything hidden is tracked in its own map (never the
  * immersive alpha-based registry) and restored when its switch turns off, so
- * a missed guess never sticks. Every hide is logged for user feedback.
+ * a missed guess never sticks. Every hide is logged for user feedback, and
+ * matches are re-hidden while they keep matching, so a host re-show never
+ * sticks either.
  */
 final class FeedUiHider {
     private static final double PUBLISH_TOP_FRACTION = 0.80;
@@ -33,6 +36,10 @@ final class FeedUiHider {
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View, Integer> TAB_HIDDEN =
             Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Set<View> PUBLISH_MISS_LOGGED =
+            Collections.newSetFromMap(new WeakHashMap<>());
+    private static final long REHIDE_LOG_INTERVAL_MS = 5000L;
+    private static long lastRehideLogAt;
     private static final int[] LOCATION = new int[2];
 
     private FeedUiHider() {
@@ -76,6 +83,19 @@ final class FeedUiHider {
             boolean clickable,
             boolean descHasPublish
     ) {
+        return isPublishGeometry(
+                centerX, top, width, height, decorWidth, decorHeight)
+                && isPublishSignal(clickable, descHasPublish);
+    }
+
+    static boolean isPublishGeometry(
+            int centerX,
+            int top,
+            int width,
+            int height,
+            int decorWidth,
+            int decorHeight
+    ) {
         if (decorWidth <= 0 || decorHeight <= 0 || width <= 0 || height <= 0) {
             return false;
         }
@@ -85,10 +105,11 @@ final class FeedUiHider {
         if (Math.abs(centerX - decorWidth / 2.0) > decorWidth * PUBLISH_CENTER_TOLERANCE) {
             return false;
         }
-        if (width > decorWidth * PUBLISH_MAX_WIDTH_FRACTION
-                || height > decorHeight * PUBLISH_MAX_HEIGHT_FRACTION) {
-            return false;
-        }
+        return width <= decorWidth * PUBLISH_MAX_WIDTH_FRACTION
+                && height <= decorHeight * PUBLISH_MAX_HEIGHT_FRACTION;
+    }
+
+    static boolean isPublishSignal(boolean clickable, boolean descHasPublish) {
         return clickable || descHasPublish;
     }
 
@@ -131,19 +152,27 @@ final class FeedUiHider {
             node.getLocationOnScreen(LOCATION);
             int centerX = LOCATION[0] + node.getWidth() / 2;
             CharSequence description = node.getContentDescription();
-            boolean descHasPublish = description != null
-                    && description.toString().contains("发布");
-            if (isPublishCandidate(
+            String desc = description == null ? "" : description.toString();
+            boolean descHasPublish = desc.contains("发布");
+            boolean clickable = node.isClickable();
+            boolean geometry = isPublishGeometry(
                     centerX,
                     LOCATION[1],
                     node.getWidth(),
                     node.getHeight(),
                     decorWidth,
-                    decorHeight,
-                    node.isClickable(),
-                    descHasPublish
-            )) {
+                    decorHeight);
+            boolean signal = isPublishSignal(clickable, descHasPublish);
+            if (geometry && signal) {
                 hideInto(PUBLISH_HIDDEN, node, "publish");
+            } else if ((geometry || signal) && PUBLISH_MISS_LOGGED.add(node)) {
+                LogBook.i("[FeedUi] publish miss " + node.getClass().getName()
+                        + " geo=" + geometry + " sig=" + signal
+                        + " w=" + node.getWidth() + " h=" + node.getHeight()
+                        + " top=" + LOCATION[1] + " cx=" + centerX
+                        + " decor=" + decorWidth + "x" + decorHeight
+                        + " clickable=" + clickable
+                        + " desc=" + abbreviate(desc));
             }
         }
         if (node instanceof ViewGroup group) {
@@ -151,6 +180,11 @@ final class FeedUiHider {
                 collectPublishCandidates(group.getChildAt(index), decorWidth, decorHeight);
             }
         }
+    }
+
+    private static String abbreviate(String desc) {
+        String clean = desc.replace('\n', ' ').trim();
+        return clean.length() <= 12 ? clean : clean.substring(0, 12) + "…";
     }
 
     private static void collectTabCandidates(
@@ -195,14 +229,26 @@ final class FeedUiHider {
     }
 
     private static void hideInto(Map<View, Integer> hidden, View view, String what) {
+        boolean first;
         synchronized (hidden) {
-            if (hidden.containsKey(view)) {
-                return;
+            first = !hidden.containsKey(view);
+            if (first) {
+                hidden.put(view, view.getVisibility());
             }
-            hidden.put(view, view.getVisibility());
+        }
+        if (view.getVisibility() == View.GONE) {
+            return;
         }
         view.setVisibility(View.GONE);
-        LogBook.i("[FeedUi] hide " + what + " view=" + view.getClass().getName());
+        if (first) {
+            LogBook.i("[FeedUi] hide " + what + " view=" + view.getClass().getName());
+            return;
+        }
+        long now = SystemClock.uptimeMillis();
+        if (now - lastRehideLogAt >= REHIDE_LOG_INTERVAL_MS) {
+            lastRehideLogAt = now;
+            LogBook.i("[FeedUi] re-hide " + what + " view=" + view.getClass().getName());
+        }
     }
 
     private static void restoreMap(Map<View, Integer> hidden, String what) {

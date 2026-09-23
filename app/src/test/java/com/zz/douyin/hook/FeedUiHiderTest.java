@@ -39,6 +39,18 @@ public final class FeedUiHiderTest {
     }
 
     @Test
+    public void publishGeometryAndSignalSplitMatchesCandidate() {
+        assertTrue(FeedUiHider.isPublishGeometry(540, 1920, 120, 120, 1080, 2280));
+        assertTrue(FeedUiHider.isPublishSignal(true, false));
+        assertTrue(FeedUiHider.isPublishSignal(false, true));
+        assertFalse(FeedUiHider.isPublishGeometry(540, 1000, 120, 120, 1080, 2280));
+        assertFalse(FeedUiHider.isPublishGeometry(100, 1920, 120, 120, 1080, 2280));
+        assertFalse(FeedUiHider.isPublishGeometry(540, 1920, 900, 120, 1080, 2280));
+        assertFalse(FeedUiHider.isPublishGeometry(540, 1920, 120, 600, 1080, 2280));
+        assertFalse(FeedUiHider.isPublishSignal(false, false));
+    }
+
+    @Test
     public void tabKeywordMatchesShortText() {
         List<String> keywords = List.of("商城", "精选");
 
