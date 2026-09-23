@@ -147,7 +147,7 @@ public final class MainActivity extends Activity
         skipLives = addSwitch(
                 typeCard,
                 "直播",
-                "跳过直播间内容",
+                "推荐页跳过直播间；在直播 tab 内不跳过",
                 FilterPreferences.KEY_SKIP_LIVES
         );
         addDivider(typeCard);

@@ -97,6 +97,7 @@ final class ImmersiveUi {
             new WeakReference<>(null);
     private static WeakReference<View> lastProgressLogged =
             new WeakReference<>(null);
+    private static String lastLiveTabKeepAid;
     private static long lastHandledTouchDownTime;
     private static long contentCheckNotBefore;
     private static long contentCheckUntil;
@@ -1647,6 +1648,14 @@ final class ImmersiveUi {
             String reason = model.shouldFilter()
                     ? model.filterReason
                     : null;
+            if (reason != null && model.live && TabDetector.isLiveTab(decor)) {
+                if (!model.aid.equals(lastLiveTabKeepAid)) {
+                    lastLiveTabKeepAid = model.aid;
+                    LogBook.i("[Filter] keep live: live tab active aid="
+                            + model.aid);
+                }
+                reason = null;
+            }
             if (reason != null) {
                 if (!activelyArmed) {
                     contentCheckNotBefore = 0L;
