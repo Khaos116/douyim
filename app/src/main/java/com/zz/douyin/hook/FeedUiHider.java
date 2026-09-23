@@ -29,6 +29,9 @@ final class FeedUiHider {
     private static final double PUBLISH_CENTER_TOLERANCE = 0.20;
     private static final double PUBLISH_MAX_WIDTH_FRACTION = 0.18;
     private static final double PUBLISH_MAX_HEIGHT_FRACTION = 0.12;
+    private static final double PUBLISH_DESC_TOP_FRACTION = 0.85;
+    private static final double TAB_ITEM_MAX_WIDTH_FRACTION = 0.30;
+    private static final double TAB_ITEM_MAX_HEIGHT_FRACTION = 0.20;
     private static final double TAB_TOP_FRACTION = 0.22;
     private static final int TAB_MAX_TEXT_LENGTH = 12;
 
@@ -113,6 +116,23 @@ final class FeedUiHider {
         return clickable || descHasPublish;
     }
 
+    static boolean isTabItemSize(int width, int height, int decorWidth, int decorHeight) {
+        if (decorWidth <= 0 || decorHeight <= 0 || width <= 0 || height <= 0) {
+            return false;
+        }
+        return width <= decorWidth * TAB_ITEM_MAX_WIDTH_FRACTION
+                && height <= decorHeight * TAB_ITEM_MAX_HEIGHT_FRACTION;
+    }
+
+    static boolean isPublishDescArea(int centerX, int top, int decorWidth, int decorHeight) {
+        if (decorWidth <= 0 || decorHeight <= 0) {
+            return false;
+        }
+        return top >= decorHeight * PUBLISH_DESC_TOP_FRACTION
+                && Math.abs(centerX - decorWidth / 2.0)
+                        <= decorWidth * PUBLISH_CENTER_TOLERANCE;
+    }
+
     static boolean matchesTabKeyword(String text, List<String> keywords) {
         if (text == null || keywords == null || keywords.isEmpty()) {
             return false;
@@ -165,7 +185,14 @@ final class FeedUiHider {
             boolean signal = isPublishSignal(clickable, descHasPublish);
             if (geometry && signal) {
                 hideInto(PUBLISH_HIDDEN, node, "publish");
-            } else if ((geometry || signal) && PUBLISH_MISS_LOGGED.add(node)) {
+            }
+            if (descHasPublish) {
+                hidePublishTabItem(node, centerX, LOCATION[1], decorWidth, decorHeight);
+            }
+            if (!descHasPublish
+                    && !(geometry && signal)
+                    && (geometry || signal)
+                    && PUBLISH_MISS_LOGGED.add(node)) {
                 LogBook.i("[FeedUi] publish miss " + node.getClass().getName()
                         + " geo=" + geometry + " sig=" + signal
                         + " w=" + node.getWidth() + " h=" + node.getHeight()
@@ -180,6 +207,53 @@ final class FeedUiHider {
                 collectPublishCandidates(group.getChildAt(index), decorWidth, decorHeight);
             }
         }
+    }
+
+    /**
+     * Hides the whole bottom-tab item anchored by a "发布" description,
+     * climbing from the (possibly tiny) described view up to the largest
+     * ancestor that still fits a tab item. Both references hide the tab unit
+     * rather than the glyph: FreedomPlus hides the X-named wrapper, DYHelper
+     * resolves the button class; the size-bounded climb is the DexKit-free
+     * equivalent.
+     */
+    private static void hidePublishTabItem(
+            View node, int centerX, int top, int decorWidth, int decorHeight) {
+        if (!isPublishDescArea(centerX, top, decorWidth, decorHeight)) {
+            logPublishDescMiss(node, "area", decorWidth, decorHeight);
+            return;
+        }
+        View item = node;
+        android.view.ViewParent parent = node.getParent();
+        while (parent instanceof ViewGroup group) {
+            if (!isTabItemSize(
+                    group.getWidth(), group.getHeight(), decorWidth, decorHeight)) {
+                break;
+            }
+            item = group;
+            parent = group.getParent();
+        }
+        if (item == node
+                && !isTabItemSize(
+                        node.getWidth(), node.getHeight(), decorWidth, decorHeight)) {
+            logPublishDescMiss(node, "size", decorWidth, decorHeight);
+            return;
+        }
+        hideInto(PUBLISH_HIDDEN, item, "publish-tab");
+    }
+
+    private static void logPublishDescMiss(
+            View node, String stage, int decorWidth, int decorHeight) {
+        if (!PUBLISH_MISS_LOGGED.add(node)) {
+            return;
+        }
+        node.getLocationOnScreen(LOCATION);
+        LogBook.i("[FeedUi] publish desc-miss " + node.getClass().getName()
+                + " stage=" + stage
+                + " w=" + node.getWidth() + " h=" + node.getHeight()
+                + " top=" + LOCATION[1]
+                + " cx=" + (LOCATION[0] + node.getWidth() / 2)
+                + " decor=" + decorWidth + "x" + decorHeight);
     }
 
     private static String abbreviate(String desc) {

@@ -51,6 +51,24 @@ public final class FeedUiHiderTest {
     }
 
     @Test
+    public void tabItemSizeBoundsSingleTab() {
+        assertTrue(FeedUiHider.isTabItemSize(216, 140, 1080, 2280));
+        assertTrue(FeedUiHider.isTabItemSize(120, 120, 1080, 2280));
+        assertFalse(FeedUiHider.isTabItemSize(1080, 140, 1080, 2280));
+        assertFalse(FeedUiHider.isTabItemSize(216, 600, 1080, 2280));
+        assertFalse(FeedUiHider.isTabItemSize(0, 140, 1080, 2280));
+        assertFalse(FeedUiHider.isTabItemSize(216, 140, 0, 2280));
+    }
+
+    @Test
+    public void publishDescAreaIsBottomCenter() {
+        assertTrue(FeedUiHider.isPublishDescArea(540, 2100, 1080, 2280));
+        assertFalse(FeedUiHider.isPublishDescArea(540, 1500, 1080, 2280));
+        assertFalse(FeedUiHider.isPublishDescArea(100, 2100, 1080, 2280));
+        assertFalse(FeedUiHider.isPublishDescArea(540, 2100, 0, 2280));
+    }
+
+    @Test
     public void tabKeywordMatchesShortText() {
         List<String> keywords = List.of("商城", "精选");
 
