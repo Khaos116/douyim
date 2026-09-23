@@ -25,8 +25,8 @@ import java.util.TimeZone;
  * expose publish-time/location TextViews to find and rewrite. It never
  * consumes touches and is removed whenever both switches are off or nothing
  * is known. The description anchor is found by matching visible text against
- * the snapshot; when no match exists the overlay falls back to the top-left
- * corner instead of guessing.
+ * the snapshot; when no match exists the overlay falls back to a fixed
+ * bottom-left slot so it never jumps to the top.
  */
 final class PublishInfo {
     private static final int MIN_DESC_MATCH_LENGTH = 8;
@@ -156,7 +156,8 @@ final class PublishInfo {
                     top, decor.getHeight() - Math.round(32f * density)));
         } else {
             left = Math.round(12f * density);
-            top = Math.round(96f * density);
+            top = decor.getHeight() - Math.round(180f * density);
+            top = Math.max(0, top);
         }
         if (left == lastLeft && top == lastTop) {
             return;
@@ -179,7 +180,9 @@ final class PublishInfo {
         View[] best = new View[1];
         int[] bestLength = new int[]{-1};
         int[] bestTop = new int[]{Integer.MIN_VALUE};
-        collectAnchor(decor, desc, title, best, bestLength, bestTop);
+        collectAnchor(
+                decor, desc, title, decor.getHeight(),
+                best, bestLength, bestTop);
         return best[0];
     }
 
@@ -187,6 +190,7 @@ final class PublishInfo {
             View node,
             String desc,
             String title,
+            int decorHeight,
             View[] best,
             int[] bestLength,
             int[] bestTop
@@ -198,12 +202,18 @@ final class PublishInfo {
             String shown = content == null ? "" : content.toString();
             if (isDescriptionMatch(shown, desc, title)) {
                 node.getLocationOnScreen(LOCATION);
-                int length = shown.trim().length();
-                if (length > bestLength[0]
-                        || (length == bestLength[0] && LOCATION[1] > bestTop[0])) {
-                    best[0] = node;
-                    bestLength[0] = length;
-                    bestTop[0] = LOCATION[1];
+                if (LOCATION[1] < decorHeight * 0.5) {
+                    // Descriptions live in the lower half; top matches are
+                    // false positives from other screens (tabs, comments).
+                } else {
+                    int length = shown.trim().length();
+                    if (length > bestLength[0]
+                            || (length == bestLength[0]
+                            && LOCATION[1] > bestTop[0])) {
+                        best[0] = node;
+                        bestLength[0] = length;
+                        bestTop[0] = LOCATION[1];
+                    }
                 }
             }
         }
@@ -212,7 +222,7 @@ final class PublishInfo {
                     index < count;
                     index++) {
                 collectAnchor(
-                        group.getChildAt(index), desc, title,
+                        group.getChildAt(index), desc, title, decorHeight,
                         best, bestLength, bestTop);
             }
         }
@@ -228,7 +238,7 @@ final class PublishInfo {
         }
         if (!aid.equals(lastAnchorMissAid)) {
             lastAnchorMissAid = aid;
-            LogBook.d("[PublishInfo] no desc anchor; fallback position aid=" + aid);
+            LogBook.d("[PublishInfo] no desc anchor; bottom fallback aid=" + aid);
         }
     }
 
