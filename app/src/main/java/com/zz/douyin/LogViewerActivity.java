@@ -69,7 +69,7 @@ public final class LogViewerActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BACKGROUND);
-        root.setPadding(dp(20), dp(32), dp(20), dp(32));
+        root.setPadding(dp(16), dp(16), dp(16), dp(16));
 
         TextView title = text("运行日志", 28, TEXT_PRIMARY);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -82,17 +82,25 @@ public final class LogViewerActivity extends Activity {
 
         statusView = text("", 13, TEXT_SECONDARY);
         LinearLayout.LayoutParams statusParams = matchWrap();
-        statusParams.topMargin = dp(12);
+        statusParams.topMargin = dp(6);
         root.addView(statusView, statusParams);
 
         TextView fileHeader = sectionTitle("日志文件");
         LinearLayout.LayoutParams fileHeaderParams = matchWrap();
-        fileHeaderParams.topMargin = dp(12);
+        fileHeaderParams.topMargin = dp(8);
         root.addView(fileHeader, fileHeaderParams);
-        ScrollView fileScroll = new ScrollView(this);
-        LinearLayout.LayoutParams fileParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        fileParams.topMargin = dp(8);
+        // Wrap the file list and cap its height so a short list leaves room
+        // for the log body instead of holding a fixed third of the screen.
+        final int maxFileListHeight = dp(180);
+        ScrollView fileScroll = new ScrollView(this) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(
+                        maxFileListHeight, View.MeasureSpec.AT_MOST));
+            }
+        };
+        LinearLayout.LayoutParams fileParams = matchWrap();
+        fileParams.topMargin = dp(6);
         root.addView(fileScroll, fileParams);
         fileContainer = new LinearLayout(this);
         fileContainer.setOrientation(LinearLayout.VERTICAL);
@@ -100,13 +108,13 @@ public final class LogViewerActivity extends Activity {
 
         TextView levelHeader = sectionTitle("级别过滤");
         LinearLayout.LayoutParams levelHeaderParams = matchWrap();
-        levelHeaderParams.topMargin = dp(16);
+        levelHeaderParams.topMargin = dp(8);
         root.addView(levelHeader, levelHeaderParams);
         LinearLayout levelRow = new LinearLayout(this);
         levelRow.setOrientation(LinearLayout.HORIZONTAL);
         levelRow.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams levelRowParams = matchWrap();
-        levelRowParams.topMargin = dp(8);
+        levelRowParams.topMargin = dp(6);
         root.addView(levelRow, levelRowParams);
         String[] labels = {"全部", "信息+", "警告+", "错误"};
         char[] levels = {'D', 'I', 'W', 'E'};
@@ -132,7 +140,7 @@ public final class LogViewerActivity extends Activity {
         actionRow.setOrientation(LinearLayout.HORIZONTAL);
         actionRow.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams actionParams = matchWrap();
-        actionParams.topMargin = dp(12);
+        actionParams.topMargin = dp(8);
         root.addView(actionRow, actionParams);
         Button refreshButton = smallButton("刷新");
         refreshButton.setOnClickListener(view -> reload());
@@ -166,13 +174,13 @@ public final class LogViewerActivity extends Activity {
         permissionButton.setBackground(rounded(PRIMARY, 12));
         permissionButton.setOnClickListener(view -> requestStoragePermission());
         LinearLayout.LayoutParams permissionParams = matchWrap();
-        permissionParams.topMargin = dp(12);
+        permissionParams.topMargin = dp(8);
         root.addView(permissionButton, permissionParams);
 
         logScroll = new ScrollView(this);
         LinearLayout.LayoutParams logParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 2f);
-        logParams.topMargin = dp(12);
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        logParams.topMargin = dp(8);
         root.addView(logScroll, logParams);
         logView = new TextView(this);
         logView.setTypeface(Typeface.MONOSPACE);
