@@ -57,6 +57,7 @@ final class ImmersiveUi {
     private static volatile boolean exactCountsEnabled = true;
     private static volatile boolean publishTimeEnabled = true;
     private static volatile boolean publishLocationEnabled = true;
+    private static volatile boolean onlineLocationEnabled = true;
     private static volatile boolean customColorsEnabled;
     private static volatile boolean copyLinkEnabled = true;
     private static volatile boolean hidePublishEnabled;
@@ -147,6 +148,7 @@ final class ImmersiveUi {
         exactCountsEnabled = com.zz.douyin.FilterPreferences.readExactCounts(preferences);
         publishTimeEnabled = com.zz.douyin.FilterPreferences.readPublishTime(preferences);
         publishLocationEnabled = com.zz.douyin.FilterPreferences.readPublishLocation(preferences);
+        onlineLocationEnabled = com.zz.douyin.FilterPreferences.readOnlineLocation(preferences);
         customColorsEnabled = com.zz.douyin.FilterPreferences.readCustomTextColors(preferences);
         countTextColor = com.zz.douyin.FilterPreferences.readCountTextColor(preferences);
         publishTimeColor = com.zz.douyin.FilterPreferences.readPublishTimeColor(preferences);
@@ -594,6 +596,7 @@ final class ImmersiveUi {
                     decor,
                     publishTimeEnabled,
                     publishLocationEnabled,
+                    onlineLocationEnabled,
                     customColorsEnabled,
                     publishTimeColor,
                     locationTextColor

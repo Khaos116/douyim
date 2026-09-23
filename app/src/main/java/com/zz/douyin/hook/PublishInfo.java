@@ -26,6 +26,9 @@ import java.util.TimeZone;
  * consumes touches and is removed whenever both switches are off or nothing
  * is known. A fixed corner is used deliberately: anchoring below the video
  * description overlapped feed text on real devices.
+ *
+ * <p>The {@code city} model value is an administrative-division code, not a
+ * name, so it is resolved through {@link AdcodeResolver} before display.
  */
 final class PublishInfo {
     private static WeakReference<TextView> overlay = new WeakReference<>(null);
@@ -43,6 +46,7 @@ final class PublishInfo {
             View decor,
             boolean timeEnabled,
             boolean locationEnabled,
+            boolean onlineLocationEnabled,
             boolean customColors,
             int timeColor,
             int locationColor
@@ -54,6 +58,9 @@ final class PublishInfo {
             } catch (RuntimeException failed) {
                 snapshot = null;
             }
+        }
+        if (locationEnabled && onlineLocationEnabled && snapshot != null) {
+            maybePrefetchOnline(snapshot);
         }
         OverlayContent content = composeOverlay(snapshot, timeEnabled, locationEnabled);
         TextView view = overlay.get();
@@ -222,10 +229,39 @@ final class PublishInfo {
         if (!snapshot.poiName.isEmpty()) {
             return snapshot.poiName;
         }
-        if (!snapshot.location.isEmpty()) {
-            return snapshot.location;
+        String location = resolvePlacePart(snapshot.location);
+        if (!location.isEmpty()) {
+            return location;
         }
-        return snapshot.city;
+        return resolvePlacePart(snapshot.city);
+    }
+
+    /**
+     * Resolves a location/city model value for display. Real names pass
+     * through untouched; division codes resolve via the offline table (or a
+     * previously fetched online result), falling back to the raw code so an
+     * unknown code stays visible for debugging instead of vanishing.
+     */
+    static String resolvePlacePart(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return "";
+        }
+        if (!AdcodeResolver.isCode(raw)) {
+            return raw;
+        }
+        String resolved = AdcodeResolver.resolveSync(raw);
+        return resolved.isEmpty() ? raw.trim() : resolved;
+    }
+
+    private static void maybePrefetchOnline(FeedContentTracker.Snapshot snapshot) {
+        if (!snapshot.poiName.isEmpty()) {
+            return;
+        }
+        String part = snapshot.location.isEmpty() ? snapshot.city : snapshot.location;
+        if (AdcodeResolver.isCode(part)
+                && AdcodeResolver.resolveSync(part).isEmpty()) {
+            AdcodeResolver.prefetchOnline(part);
+        }
     }
 
     private static int separate(StringBuilder text) {

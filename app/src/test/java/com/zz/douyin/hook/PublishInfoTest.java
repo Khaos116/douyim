@@ -182,6 +182,28 @@ public final class PublishInfoTest {
         assertEquals("", PublishInfo.displayPlace(null));
     }
 
+    @Test
+    public void resolvePlacePartDecodesAdcodes() {
+        assertEquals("北京市 东城区", PublishInfo.resolvePlacePart("110101"));
+        assertEquals("北京市", PublishInfo.resolvePlacePart("110199"));
+        assertEquals("成都市", PublishInfo.resolvePlacePart("成都市"));
+        assertEquals("", PublishInfo.resolvePlacePart(""));
+        assertEquals("", PublishInfo.resolvePlacePart(null));
+    }
+
+    @Test
+    public void resolvePlacePartKeepsUnknownCodeVisible() {
+        assertEquals("999999", PublishInfo.resolvePlacePart("999999"));
+    }
+
+    @Test
+    public void displayPlaceResolvesCityCode() {
+        assertEquals("上海市 浦东新区", PublishInfo.displayPlace(
+                snapshot(-1L, -1L, "", "", "", "310115")));
+        assertEquals("春熙路", PublishInfo.displayPlace(
+                snapshot(-1L, -1L, "", "春熙路", "", "310115")));
+    }
+
     private static FeedContentTracker.Snapshot snapshot(
             long createTimeMs,
             long durationMs,

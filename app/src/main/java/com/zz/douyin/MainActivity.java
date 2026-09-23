@@ -48,6 +48,7 @@ public final class MainActivity extends Activity
     private Switch exactCounts;
     private Switch publishTime;
     private Switch publishLocation;
+    private Switch onlineLocation;
     private Switch customColors;
     private Switch copyLink;
     private Switch showProgress;
@@ -216,6 +217,10 @@ public final class MainActivity extends Activity
         publishLocation = addSwitch(playbackCard, "一直显示IP属地/地点",
                 "左上角同行追加IP属地与地点；无数据时不显示、不伪造",
                 FilterPreferences.KEY_PUBLISH_LOCATION);
+        addDivider(playbackCard);
+        onlineLocation = addSwitch(playbackCard, "地点编码在线解析",
+                "离线库查不到地点编码时才联网解析一次；关闭后仅用离线库",
+                FilterPreferences.KEY_ONLINE_LOCATION);
         addDivider(playbackCard);
         customColors = addSwitch(playbackCard, "自定义文本颜色",
                 "用下方颜色覆盖精确数字/发布时间/IP属地地点；关闭后恢复抖音原样式",
@@ -528,6 +533,7 @@ public final class MainActivity extends Activity
         exactCounts.setChecked(FilterPreferences.readExactCounts(bound));
         publishTime.setChecked(FilterPreferences.readPublishTime(bound));
         publishLocation.setChecked(FilterPreferences.readPublishLocation(bound));
+        onlineLocation.setChecked(FilterPreferences.readOnlineLocation(bound));
         customColors.setChecked(FilterPreferences.readCustomTextColors(bound));
         copyLink.setChecked(FilterPreferences.readCopyLink(bound));
         showProgress.setChecked(FilterPreferences.readShowProgress(bound));
@@ -678,6 +684,7 @@ public final class MainActivity extends Activity
         exactCounts.setEnabled(enabled);
         publishTime.setEnabled(enabled);
         publishLocation.setEnabled(enabled);
+        onlineLocation.setEnabled(enabled);
         customColors.setEnabled(enabled);
         copyLink.setEnabled(enabled);
         showProgress.setEnabled(enabled);
