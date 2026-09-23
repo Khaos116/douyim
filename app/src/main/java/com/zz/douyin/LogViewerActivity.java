@@ -227,6 +227,17 @@ public final class LogViewerActivity extends Activity {
     }
 
     private void diagnoseEmpty() {
+        if (needsFilePermission()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                statusView.setText("需要“允许管理所有文件”才能读取日志；"
+                        + "点下方按钮去设置中打开，回退后自动刷新");
+            } else {
+                statusView.setText("需要存储权限才能读取日志；点下方按钮授权");
+            }
+            statusView.setTextColor(Color.rgb(255, 166, 77));
+            permissionButton.setVisibility(View.VISIBLE);
+            return;
+        }
         File dir = LogBook.logDir();
         boolean exists = false;
         boolean readable = false;
@@ -243,16 +254,11 @@ public final class LogViewerActivity extends Activity {
             return;
         }
         if (!readable) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                statusView.setText("日志目录不可读：Android 11+ 需要“允许管理所有文件”；"
-                        + "点下方按钮去设置中打开，回退后自动刷新");
-            } else {
-                statusView.setText("日志目录不可读，需要存储权限；"
-                        + "授权后仍不可读请用 adb 导出：\n"
-                        + "adb logcat -v threadtime -s DouyinImmersive");
-            }
+            // Permission is already granted here; something else blocks reads.
+            statusView.setText("已有权限但目录仍不可读，请用 adb 导出：\n"
+                    + "adb logcat -v threadtime -s DouyinImmersive");
             statusView.setTextColor(Color.rgb(255, 166, 77));
-            permissionButton.setVisibility(View.VISIBLE);
+            permissionButton.setVisibility(View.GONE);
             return;
         }
         statusView.setText("目录可读但没有日志文件");
@@ -287,6 +293,28 @@ public final class LogViewerActivity extends Activity {
         share.putExtra(Intent.EXTRA_SUBJECT, "抖仙人运行日志");
         share.putExtra(Intent.EXTRA_TEXT, currentText);
         startActivity(Intent.createChooser(share, "分享日志"));
+    }
+
+    /**
+     * On Android 11+ another app's media dir is invisible without all-files
+     * access ({@code exists()} lies and returns false), so the permission
+     * state must be checked before trusting any {@link java.io.File} probe.
+     */
+    @TargetApi(Build.VERSION_CODES.R)
+    private boolean needsFilePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                return !Environment.isExternalStorageManager();
+            } catch (RuntimeException ignored) {
+                return true;
+            }
+        }
+        try {
+            return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED;
+        } catch (RuntimeException ignored) {
+            return true;
+        }
     }
 
     private void requestStoragePermission() {
