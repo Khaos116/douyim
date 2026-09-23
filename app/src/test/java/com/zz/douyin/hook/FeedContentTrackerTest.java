@@ -278,6 +278,60 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
+    public void ipLocationStringSerializedNameResolves() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.ipLocationString = "四川";
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("四川", snapshot.ipLabel);
+    }
+
+    @Test
+    public void poiStructGetterResolves() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.poiStruct = new FakePoi("宽窄巷子");
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("宽窄巷子", snapshot.poiName);
+    }
+
+    @Test
+    public void awemeCityResolvesAsCity() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.awemeCity = "成都市";
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("成都市", snapshot.city);
+    }
+
+    @Test
+    public void poiCityNestedResolvesAsCity() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        FakePoi poi = new FakePoi("");
+        poi.poiCity = "成都市";
+        aweme.poi = poi;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("成都市", snapshot.city);
+    }
+
+    @Test
+    public void poiAddressNestedResolvesAsLocation() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        FakePoi poi = new FakePoi("");
+        poi.address = "春熙路北段";
+        aweme.poi = poi;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("春熙路北段", snapshot.location);
+    }
+
+    @Test
     public void keywordMatchesVideoItemTitle() {
         FakeAweme aweme = videoAweme(0);
         aweme.itemTitle = "今天一起玩超级游戏";
@@ -470,11 +524,19 @@ public final class FeedContentTrackerTest {
         public String ipLabelMethod;
         public String location;
         public String city;
+        public String awemeCity;
         public Object author;
         public Object poi;
+        public Object poiStruct;
+        @SerializedName("ip_location_string")
+        public String ipLocationString;
 
         public String getIpLabel() {
             return ipLabelMethod;
+        }
+
+        public Object getPoiStruct() {
+            return poiStruct;
         }
 
         public boolean isImage() {
@@ -500,6 +562,8 @@ public final class FeedContentTrackerTest {
 
     public static final class FakePoi {
         public final String poiName;
+        public String poiCity;
+        public String address;
 
         FakePoi(String poiName) {
             this.poiName = poiName;

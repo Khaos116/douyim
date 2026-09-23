@@ -172,12 +172,21 @@ public final class AwemeAccessor {
     }
 
     public Object poi() {
-        Object poi = invokeNoArg(type, aweme, "getPoi");
+        Object poi = invokeNoArg(type, aweme, "getPoiStruct");
+        if (poi == null) {
+            poi = readField(type, aweme, "poiStruct");
+        }
+        if (poi == null) {
+            poi = invokeNoArg(type, aweme, "getPoi");
+        }
         if (poi == null) {
             poi = readField(type, aweme, "poi");
         }
         if (poi == null) {
             poi = readField(type, aweme, "poiInfo");
+        }
+        if (poi == null) {
+            poi = readSerializedField(aweme, "poi_struct");
         }
         if (poi == null) {
             poi = readSerializedField(aweme, "poi");
@@ -192,6 +201,7 @@ public final class AwemeAccessor {
         String direct = firstNonBlank(
                 textOn(aweme, "getIpLabel", "ipLabel", "ip_label"),
                 textOn(aweme, "getIpLocation", "ipLocation", "ip_location"),
+                textValue(readSerializedField(aweme, "ip_location_string")),
                 textOn(aweme, "getIpAttribution", "ipAttribution", "ip_attribution")
         );
         if (!direct.isEmpty()) {
@@ -200,7 +210,8 @@ public final class AwemeAccessor {
         Object author = author();
         return firstNonBlank(
                 textOn(author, "getIpLabel", "ipLabel", "ip_label"),
-                textOn(author, "getIpLocation", "ipLocation", "ip_location")
+                textOn(author, "getIpLocation", "ipLocation", "ip_location"),
+                textValue(readSerializedField(author, "ip_location_string"))
         );
     }
 
@@ -217,24 +228,41 @@ public final class AwemeAccessor {
     }
 
     public String location() {
-        return firstNonBlank(
+        String direct = firstNonBlank(
                 textOn(aweme, "getLocation", "location", "location"),
                 textOn(aweme, "getAddress", "address", "address")
-        );
-    }
-
-    public String city() {
-        String direct = firstNonBlank(
-                textOn(aweme, "getCity", "city", "city"),
-                textOn(aweme, "getCityName", "cityName", "city_name")
         );
         if (!direct.isEmpty()) {
             return direct;
         }
         Object poi = poi();
         return firstNonBlank(
+                textOn(poi, "getAddress", "address", "address"),
+                textOn(poi, "getPoiAddress", "poiAddress", "poi_address")
+        );
+    }
+
+    public String city() {
+        String direct = firstNonBlank(
+                textOn(aweme, "getCity", "city", "city"),
+                textOn(aweme, "getCityName", "cityName", "city_name"),
+                textOn(aweme, "getAwemeCity", "awemeCity", "aweme_city")
+        );
+        if (!direct.isEmpty()) {
+            return direct;
+        }
+        Object poi = poi();
+        String nested = firstNonBlank(
                 textOn(poi, "getCity", "city", "city"),
-                textOn(poi, "getCityName", "cityName", "city_name")
+                textOn(poi, "getCityName", "cityName", "city_name"),
+                textOn(poi, "getPoiCity", "poiCity", "poi_city")
+        );
+        if (!nested.isEmpty()) {
+            return nested;
+        }
+        return firstNonBlank(
+                textOn(aweme, "getAwemeRegion", "awemeRegion", "aweme_region"),
+                textOn(aweme, "getRegion", "region", "region")
         );
     }
 
