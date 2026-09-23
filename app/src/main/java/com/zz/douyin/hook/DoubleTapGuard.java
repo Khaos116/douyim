@@ -1,6 +1,5 @@
 package com.zz.douyin.hook;
 
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 
@@ -32,7 +31,7 @@ final class DoubleTapGuard {
                 .setExceptionMode(DouyinModule.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
                     if (ImmersiveUi.shouldBlockDoubleTap()) {
-                        Log.i(DouyinModule.TAG, "blocked feed double tap before component dispatch");
+                        LogBook.i("blocked feed double tap before component dispatch");
                         return true;
                     }
                     return chain.proceed();
@@ -80,7 +79,7 @@ final class DoubleTapGuard {
                         // native video/zoom callbacks regardless of the current child.
                         if (ImmersiveUi.shouldBlockDoubleTap()) {
                             if (name.equals("onDoubleTap")) {
-                                Log.i(DouyinModule.TAG, "blocked native double tap: "
+                                LogBook.i("blocked native double tap: "
                                         + chain.getThisObject().getClass().getName());
                             }
                             return true;
@@ -88,7 +87,7 @@ final class DoubleTapGuard {
                         return chain.proceed();
                     });
             HOOKED.add(method);
-            module.log(Log.DEBUG, DouyinModule.TAG, "double tap listener: " + method);
+            LogBook.d("double tap listener: " + method);
         }
     }
 }

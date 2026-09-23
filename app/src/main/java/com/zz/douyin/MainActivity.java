@@ -1,6 +1,7 @@
 package com.zz.douyin;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -209,6 +210,28 @@ public final class MainActivity extends Activity
         LinearLayout.LayoutParams keywordCardParams = matchWrap();
         keywordCardParams.topMargin = dp(10);
         root.addView(keywordCard, keywordCardParams);
+
+        TextView advancedHeader = sectionTitle("高级");
+        LinearLayout.LayoutParams advancedHeaderParams = matchWrap();
+        advancedHeaderParams.topMargin = dp(28);
+        root.addView(advancedHeader, advancedHeaderParams);
+
+        LinearLayout advancedCard = card();
+        Button viewLogs = new Button(this);
+        viewLogs.setText("查看运行日志");
+        viewLogs.setTextColor(Color.WHITE);
+        viewLogs.setTextSize(15);
+        viewLogs.setAllCaps(false);
+        viewLogs.setBackground(rounded(PRIMARY, 12));
+        viewLogs.setOnClickListener(view -> startActivity(
+                new Intent(this, LogViewerActivity.class)
+        ));
+        LinearLayout.LayoutParams viewLogsParams = matchWrap();
+        viewLogsParams.topMargin = dp(8);
+        advancedCard.addView(viewLogs, viewLogsParams);
+        LinearLayout.LayoutParams advancedCardParams = matchWrap();
+        advancedCardParams.topMargin = dp(10);
+        root.addView(advancedCard, advancedCardParams);
 
         TextView footer = text(
                 "设置保存后会同步给抖音进程。若抖音已在后台运行但未立即生效，请强制停止后重新打开。",

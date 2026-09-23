@@ -1,6 +1,5 @@
 package com.zz.douyin.hook;
 
-import android.util.Log;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
@@ -34,13 +33,13 @@ final class PlayerHooks {
                 Class<?> type = Class.forName(className, false, loader);
                 hooked += hookEngineClass(module, type);
             } catch (ClassNotFoundException ignored) {
-                module.log(Log.DEBUG, DouyinModule.TAG, "player class absent: " + className);
+                LogBook.d("player class absent: " + className);
             } catch (Throwable error) {
-                module.log(Log.WARN, DouyinModule.TAG,
+                LogBook.w(
                         "player hook failed for " + className, error);
             }
         }
-        module.log(Log.INFO, DouyinModule.TAG, "installed " + hooked + " player hooks");
+        LogBook.i("installed " + hooked + " player hooks");
     }
 
     private static int hookEngineClass(DouyinModule module, Class<?> type) {
@@ -145,11 +144,11 @@ final class PlayerHooks {
                     count++;
                 }
             } catch (Throwable error) {
-                module.log(Log.WARN, DouyinModule.TAG,
+                LogBook.w(
                         "listener method hook failed: " + method, error);
             }
         }
-        module.log(Log.DEBUG, DouyinModule.TAG,
+        LogBook.d(
                 "listener " + type.getName() + ": " + count + " hooks");
     }
 

@@ -8,7 +8,6 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -63,8 +62,6 @@ final class ImmersiveUi {
     private static WeakReference<Activity> active = new WeakReference<>(null);
     private static WeakReference<View> activeRoot = new WeakReference<>(null);
     private static boolean scanScheduled;
-    private static boolean swipeRunning;
-    private static long swipeToken;
     private static boolean videoMissingLogged;
     private static boolean activityResolveErrorLogged;
     private static long lastScanFailureAt;
@@ -86,7 +83,6 @@ final class ImmersiveUi {
     private static long contentCheckUntil;
     private static long lastContentCheckAt;
     private static long lastFilteredSwipeAt;
-    private static long lastSwipeAt;
     private static String filterCandidateAid;
     private static String filterCandidateReason;
     private static int filterCandidateCount;
@@ -135,7 +131,7 @@ final class ImmersiveUi {
                 transitionBoostUntil = 0L;
                 resetFilterCandidate();
                 PlaybackState.clearModuleIntents();
-                Log.i(DouyinModule.TAG, "module enabled=" + moduleEnabled);
+                LogBook.i("module enabled=" + moduleEnabled);
             }
             if (!moduleEnabled) {
                 removeDownloadButton();
@@ -162,7 +158,7 @@ final class ImmersiveUi {
             View decor = activity.getWindow().getDecorView();
             activeRoot = new WeakReference<>(decor);
             attachHiddenViewGuard(decor);
-            Log.i(DouyinModule.TAG, "activity resumed: " + activity.getClass().getName());
+            LogBook.i("activity resumed: " + activity.getClass().getName());
             armContentFilter(1_000L);
             scheduleScan(120L);
         });
@@ -194,7 +190,7 @@ final class ImmersiveUi {
 
     static void beforeActivityTouch(Activity activity, MotionEvent event) {
         if (!moduleEnabled) return;
-        if (swipeRunning
+        if (FeedNavigator.isRunning()
                 || !touchInProgress
                 || event.getActionMasked() != MotionEvent.ACTION_UP
                 || !PlaybackState.isUserPaused()) {
@@ -217,7 +213,7 @@ final class ImmersiveUi {
     static void onActivityTouch(Activity activity, MotionEvent event) {
         if (!moduleEnabled) return;
         int action = event.getActionMasked();
-        if (swipeRunning) {
+        if (FeedNavigator.isRunning()) {
             if (touchInProgress
                     && (action == MotionEvent.ACTION_UP
                     || action == MotionEvent.ACTION_CANCEL)) {
@@ -335,7 +331,7 @@ final class ImmersiveUi {
                         attemptsLeft - 1
                 );
             } else {
-                Log.d(DouyinModule.TAG,
+                LogBook.d(
                         "ignored center tap because playback stayed paused");
                 scheduleScan(0L);
             }
@@ -386,7 +382,7 @@ final class ImmersiveUi {
                         attemptsLeft - 1
                 );
             } else {
-                Log.d(DouyinModule.TAG,
+                LogBook.d(
                         "ignored center tap because playback stayed active");
                 scheduleScan(0L);
             }
@@ -447,7 +443,7 @@ final class ImmersiveUi {
         });
     }
 
-    static void onPlaybackCompleted(String reason) {
+    static void onPlaybackCompleted(FeedNavigator.Reason reason) {
         MAIN.post(() -> {
             if (!moduleEnabled) return;
             Activity activity = activeActivity();
@@ -455,11 +451,11 @@ final class ImmersiveUi {
             if (decor == null) {
                 return;
             }
-            swipeToNext(decor, reason);
+            FeedNavigator.moveToNext(decor, reason);
         });
     }
 
-    private static void scheduleScan(long delayMs) {
+    static void scheduleScan(long delayMs) {
         if (scanScheduled) {
             return;
         }
@@ -475,7 +471,7 @@ final class ImmersiveUi {
             long now = SystemClock.uptimeMillis();
             if (now - lastScanFailureAt >= 2_000L) {
                 lastScanFailureAt = now;
-                Log.e(DouyinModule.TAG,
+                LogBook.e(
                         "immersive UI scan failed; watchdog will retry", error);
             }
         } finally {
@@ -503,13 +499,13 @@ final class ImmersiveUi {
         }
 
         if (PlaybackState.consumePlaybackError()) {
-            onPlaybackCompleted("playback error");
+            onPlaybackCompleted(FeedNavigator.Reason.PLAYBACK_ERROR);
             scheduleNextScan();
             return;
         }
 
         if (PlaybackState.consumeLoopBoundary()) {
-            onPlaybackCompleted("completed loop boundary");
+            onPlaybackCompleted(FeedNavigator.Reason.AUTO_PLAY_FINISHED);
             scheduleNextScan();
             return;
         }
@@ -562,7 +558,7 @@ final class ImmersiveUi {
             }
             if (!videoMissingLogged) {
                 videoMissingLogged = true;
-                Log.w(DouyinModule.TAG,
+                LogBook.w(
                         "no centered visible video SurfaceView/TextureView found");
             }
         }
@@ -591,7 +587,7 @@ final class ImmersiveUi {
         Activity resolved = resolveTopActivity();
         if (resolved != null) {
             active = new WeakReference<>(resolved);
-            Log.i(DouyinModule.TAG, "resolved activity: " + resolved.getClass().getName());
+            LogBook.i("resolved activity: " + resolved.getClass().getName());
         }
         return resolved;
     }
@@ -609,7 +605,7 @@ final class ImmersiveUi {
         View resolved = resolveLargestWindowRoot();
         if (resolved != null) {
             activeRoot = new WeakReference<>(resolved);
-            Log.i(DouyinModule.TAG, "resolved window root: "
+            LogBook.i("resolved window root: "
                     + resolved.getClass().getName() + " "
                     + resolved.getWidth() + "x" + resolved.getHeight());
         }
@@ -675,7 +671,7 @@ final class ImmersiveUi {
         button.bringToFront();
         downloadButton = new WeakReference<>(button);
         MAIN.postDelayed(() -> repositionDownloadButton(button, decor), 120L);
-        Log.i(DouyinModule.TAG,
+        LogBook.i(
                 "pause download button shown: top=" + params.topMargin);
     }
 
@@ -852,7 +848,7 @@ final class ImmersiveUi {
         } catch (ReflectiveOperationException | RuntimeException error) {
             if (!activityResolveErrorLogged) {
                 activityResolveErrorLogged = true;
-                Log.e(DouyinModule.TAG, "failed to resolve current window root", error);
+                LogBook.e("failed to resolve current window root", error);
             }
             return null;
         }
@@ -905,7 +901,7 @@ final class ImmersiveUi {
         } catch (ReflectiveOperationException | RuntimeException error) {
             if (!activityResolveErrorLogged) {
                 activityResolveErrorLogged = true;
-                Log.e(DouyinModule.TAG, "failed to resolve current Activity", error);
+                LogBook.e("failed to resolve current Activity", error);
             }
             return null;
         }
@@ -1056,7 +1052,7 @@ final class ImmersiveUi {
         }
 
         if (!(original instanceof RelativeLayout.LayoutParams relative)) {
-            Log.w(DouyinModule.TAG,
+            LogBook.w(
                     "RTViewPager layout not RelativeLayout.LayoutParams: "
                             + original.getClass().getName());
             return;
@@ -1071,7 +1067,7 @@ final class ImmersiveUi {
         EXPANDED_VIEWPORTS.put(viewport, original);
         viewport.setLayoutParams(expanded);
         viewport.requestLayout();
-        Log.d(DouyinModule.TAG,
+        LogBook.d(
                 "expanded video viewport: " + viewport.getClass().getName());
     }
 
@@ -1345,7 +1341,7 @@ final class ImmersiveUi {
             GESTURE_PATHS.clear();
         }
         if (restored > 0) {
-            Log.d(DouyinModule.TAG,
+            LogBook.d(
                     "restored hidden views=" + restored + " samples=" + samples);
         }
         if (decor != null) {
@@ -1391,110 +1387,7 @@ final class ImmersiveUi {
         // Window flags are deliberately left untouched; see hideSystemBars.
     }
 
-    private static boolean swipeToNext(View decor, String reason) {
-        if (!moduleEnabled) return false;
-        long now = SystemClock.uptimeMillis();
-        if (swipeRunning
-                || !decor.isAttachedToWindow()
-                || now - lastSwipeAt < 1_500L) {
-            return false;
-        }
-        int width = decor.getWidth();
-        int height = decor.getHeight();
-        if (width <= 0 || height <= 0) {
-            return false;
-        }
-        swipeRunning = true;
-        long currentSwipeToken = ++swipeToken;
-        lastSwipeAt = now;
-        PlaybackState.beginAutoSwitch();
-        armContentFilter(700L);
-        Log.i(DouyinModule.TAG, "swipe to next feed item: " + reason);
-
-        final float x = width * 0.5f;
-        final float startY = height * 0.72f;
-        final float endY = height * 0.24f;
-        final long downTime = SystemClock.uptimeMillis();
-        try {
-            dispatch(decor, downTime, downTime, MotionEvent.ACTION_DOWN, x, startY);
-        } catch (Throwable error) {
-            finishSwipe(currentSwipeToken, "initial dispatch failed", error);
-            return false;
-        }
-        MAIN.postDelayed(
-                () -> finishSwipe(currentSwipeToken, "watchdog timeout", null),
-                1_200L
-        );
-
-        int steps = 8;
-        for (int i = 1; i <= steps; i++) {
-            final int step = i;
-            MAIN.postDelayed(() -> {
-                if (!swipeRunning || currentSwipeToken != swipeToken) {
-                    return;
-                }
-                if (!moduleEnabled) {
-                    dispatch(decor, downTime, SystemClock.uptimeMillis(),
-                            MotionEvent.ACTION_CANCEL, x, startY);
-                    finishSwipe(currentSwipeToken, "module disabled", null);
-                    return;
-                }
-                float fraction = step / (float) steps;
-                float y = startY + (endY - startY) * fraction;
-                int action = step == steps ? MotionEvent.ACTION_UP : MotionEvent.ACTION_MOVE;
-                try {
-                    dispatch(
-                            decor,
-                            downTime,
-                            SystemClock.uptimeMillis(),
-                            action,
-                            x,
-                            y
-                    );
-                } catch (Throwable error) {
-                    finishSwipe(currentSwipeToken, "gesture dispatch failed", error);
-                    return;
-                }
-                if (step == steps) {
-                    MAIN.postDelayed(
-                            () -> finishSwipe(currentSwipeToken, null, null),
-                            500L
-                    );
-                }
-            }, i * 22L);
-        }
-        return true;
-    }
-
-    private static void finishSwipe(long token, String reason, Throwable error) {
-        if (token != swipeToken || !swipeRunning) {
-            return;
-        }
-        swipeRunning = false;
-        if (reason != null) {
-            if (error == null) {
-                Log.w(DouyinModule.TAG,
-                        "synthetic swipe recovered: " + reason);
-            } else {
-                Log.w(DouyinModule.TAG,
-                        "synthetic swipe recovered: " + reason, error);
-            }
-        }
-        scheduleScan(0L);
-    }
-
-    private static void dispatch(View view, long downTime, long eventTime,
-                                 int action, float x, float y) {
-        MotionEvent event = MotionEvent.obtain(downTime, eventTime, action, x, y, 0);
-        try {
-            event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
-            view.dispatchTouchEvent(event);
-        } finally {
-            event.recycle();
-        }
-    }
-
-    private static void armContentFilter(long delayMs) {
+    static void armContentFilter(long delayMs) {
         long now = SystemClock.uptimeMillis();
         contentCheckNotBefore = now + delayMs;
         contentCheckUntil = now + Math.max(delayMs + 2_500L, 3_000L);
@@ -1547,7 +1440,7 @@ final class ImmersiveUi {
             resetFilterCandidate();
             if (!model.aid.equals(lastAcceptedAid)) {
                 lastAcceptedAid = model.aid;
-                Log.d(DouyinModule.TAG,
+                LogBook.d(
                         "feed item accepted as video: "
                                 + model.classificationDetails());
             }
@@ -1578,7 +1471,7 @@ final class ImmersiveUi {
             filterCandidateCount = 1;
         }
         filterCandidateAt = now;
-        Log.d(DouyinModule.TAG,
+        LogBook.d(
                 "filter candidate " + filterCandidateCount + "/3: "
                         + reason + " aid=" + aid);
         return filterCandidateCount >= 3;
@@ -1593,14 +1486,15 @@ final class ImmersiveUi {
 
     private static boolean filterCurrentItem(View decor, String reason) {
         long now = SystemClock.uptimeMillis();
-        if (swipeRunning || now - lastFilteredSwipeAt < 1_500L) {
+        if (FeedNavigator.isRunning() || now - lastFilteredSwipeAt < 1_500L) {
+            LogBook.d("[Filter] filterCurrentItem skipped: running or debounce");
             return false;
         }
-        if (!swipeToNext(decor, reason)) {
+        if (!FeedNavigator.moveToNext(decor, FeedNavigator.reasonForFilter(reason))) {
             return false;
         }
         lastFilteredSwipeAt = now;
-        Log.i(DouyinModule.TAG, "filtering feed item: " + reason);
+        LogBook.i("filtering feed item: " + reason);
         return true;
     }
 

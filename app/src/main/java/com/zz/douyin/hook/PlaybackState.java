@@ -1,7 +1,6 @@
 package com.zz.douyin.hook;
 
 import android.os.SystemClock;
-import android.util.Log;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
@@ -103,6 +102,7 @@ final class PlaybackState {
                     resetProgressTracking(player);
                 }
             } else {
+                LogBook.d("[Playback] play signal ignored: engine not adopted");
                 return;
             }
         }
@@ -113,7 +113,7 @@ final class PlaybackState {
             userPausedAid = null;
             clearPendingSwitchPlayer();
             expectedVideoSwitchUntil = 0L;
-            Log.i(DouyinModule.TAG,
+            LogBook.i(
                     sameEngineResumed
                             ? "cleared user pause after confirmed resume"
                             : "new video confirmed after paused swipe");
@@ -124,14 +124,14 @@ final class PlaybackState {
         errorPlayer.clear();
         autoSwitchUntil = 0L;
         generation++;
-        Log.i(DouyinModule.TAG, "playback=playing");
+        LogBook.i("playback=playing");
         ImmersiveUi.onPlaybackChanged(true);
     }
 
     static synchronized void paused(Object player) {
         Object current = engine.get();
         if (player != null && current != null && player != current) {
-            Log.d(DouyinModule.TAG, "ignored pause from stale player "
+            LogBook.d("ignored pause from stale player "
                     + player.getClass().getName());
             return;
         }
@@ -145,7 +145,7 @@ final class PlaybackState {
             pausedAt = lastPauseSignalAt;
         }
         generation++;
-        Log.i(DouyinModule.TAG, "playback=paused");
+        LogBook.i("playback=paused");
         ImmersiveUi.onPlaybackChanged(false);
     }
 
@@ -155,6 +155,7 @@ final class PlaybackState {
         }
         Object current = engine.get();
         if (player == null || (current != null && player != current)) {
+            LogBook.d("[Playback] completed ignored: null or stale player");
             return;
         }
         if (current == null) {
@@ -164,8 +165,8 @@ final class PlaybackState {
         playing = false;
         pausedAt = SystemClock.uptimeMillis();
         generation++;
-        Log.i(DouyinModule.TAG, "playback=completed");
-        ImmersiveUi.onPlaybackCompleted("completion callback");
+        LogBook.i("playback=completed");
+        ImmersiveUi.onPlaybackCompleted(FeedNavigator.Reason.AUTO_PLAY_FINISHED);
     }
 
     static void error(Object player) {
@@ -174,6 +175,7 @@ final class PlaybackState {
         }
         Object current = engine.get();
         if (player == null || (current != null && player != current)) {
+            LogBook.d("[Playback] error ignored: null or stale player");
             return;
         }
         if (current == null) {
@@ -185,7 +187,7 @@ final class PlaybackState {
         errorAt = pausedAt;
         autoSwitchUntil = pausedAt + AUTO_SWITCH_GRACE_MS;
         generation++;
-        Log.w(DouyinModule.TAG, "playback=error");
+        LogBook.w("playback=error");
     }
 
     static boolean isPlaying() {
@@ -197,7 +199,7 @@ final class PlaybackState {
         if (state != -1) {
             if (state != lastResolvedState) {
                 lastResolvedState = state;
-                Log.i(DouyinModule.TAG, "resolved playback state=" + state
+                LogBook.i("resolved playback state=" + state
                         + " from " + player.getClass().getName());
             }
             if (state == 1) {
@@ -251,7 +253,7 @@ final class PlaybackState {
         playing = false;
         pausedAt = 0L;
         generation++;
-        Log.i(DouyinModule.TAG, "playback=user-paused");
+        LogBook.i("playback=user-paused");
         return true;
     }
 
@@ -270,7 +272,7 @@ final class PlaybackState {
                 clearPendingSwitchPlayer();
                 playing = true;
                 pausedAt = 0L;
-                Log.w(DouyinModule.TAG,
+                LogBook.w(
                         "cleared unbacked stale user pause");
             } else if (pauseAge < 600L || playbackState(pausedPlayer) != 1) {
                 return false;
@@ -282,7 +284,7 @@ final class PlaybackState {
                 clearPendingSwitchPlayer();
                 playing = true;
                 pausedAt = 0L;
-                Log.i(DouyinModule.TAG,
+                LogBook.i(
                         "cleared stale user pause because the same video is playing");
             }
         }
@@ -314,7 +316,7 @@ final class PlaybackState {
                 trackedDuration = duration;
                 lastPosition = position;
                 completionArmed = true;
-                Log.i(DouyinModule.TAG,
+                LogBook.i(
                         "tracking playback: " + player.getClass().getName()
                                 + ", duration=" + duration);
                 return false;
@@ -329,7 +331,7 @@ final class PlaybackState {
                 completionArmed = false;
                 lastAutoAdvanceAt = now;
                 autoSwitchUntil = now + AUTO_SWITCH_GRACE_MS;
-                Log.i(DouyinModule.TAG,
+                LogBook.i(
                         "completed loop boundary detected: "
                                 + position + "/" + duration);
                 lastPosition = position;
@@ -383,7 +385,7 @@ final class PlaybackState {
         errorAt = 0L;
         lastAutoAdvanceAt = SystemClock.uptimeMillis();
         autoSwitchUntil = lastAutoAdvanceAt + AUTO_SWITCH_GRACE_MS;
-        Log.w(DouyinModule.TAG, "confirmed playback error; advancing");
+        LogBook.w("confirmed playback error; advancing");
         return true;
     }
 
@@ -452,7 +454,7 @@ final class PlaybackState {
             return false;
         }
         markPlaying(expectedEngine, false, true);
-        Log.i(DouyinModule.TAG, "playback=user-resumed");
+        LogBook.i("playback=user-resumed");
         return true;
     }
 
@@ -476,7 +478,7 @@ final class PlaybackState {
         clearPendingSwitchPlayer();
         expectedVideoSwitchUntil = 0L;
         markPlaying(null, false, true);
-        Log.i(DouyinModule.TAG, "playback=user-resumed");
+        LogBook.i("playback=user-resumed");
     }
 
     static synchronized void clearModuleIntents() {
@@ -503,7 +505,7 @@ final class PlaybackState {
         clearPendingSwitchPlayer();
         expectedVideoSwitchUntil = 0L;
         markPlaying(null, false, true);
-        Log.i(DouyinModule.TAG,
+        LogBook.i(
                 "cleared user pause after feed item changed: "
                         + pausedAid + " -> " + visibleAid);
         return true;
@@ -526,7 +528,7 @@ final class PlaybackState {
         autoSwitchUntil = now + AUTO_SWITCH_GRACE_MS;
         if (userPaused) {
             expectedVideoSwitchUntil = autoSwitchUntil;
-            Log.d(DouyinModule.TAG, "waiting for new video after paused swipe");
+            LogBook.d("waiting for new video after paused swipe");
             Object candidate = pendingSwitchPlayer.get();
             Object pausedPlayer = userPausedEngine.get();
             int candidateState = playbackState(candidate);
@@ -538,7 +540,7 @@ final class PlaybackState {
                     now
             )) {
                 clearPendingSwitchPlayer();
-                Log.i(DouyinModule.TAG,
+                LogBook.i(
                         "adopting pending player after paused feed switch");
                 markPlaying(candidate, false, true);
             } else if (candidate == null

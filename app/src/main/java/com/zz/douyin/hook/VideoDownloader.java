@@ -14,7 +14,6 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
-import android.util.Log;
 import android.widget.Toast;
 
 import java.io.IOException;
@@ -92,7 +91,7 @@ final class VideoDownloader {
 
         String fileName = buildFileName(snapshot.aid, audio);
         showToast(activity, audio ? "开始下载音频，完成后保存为 MP3" : "开始下载无水印视频");
-        Log.i(DouyinModule.TAG,
+        LogBook.i(
                 "download requested: aid=" + snapshot.aid
                         + " candidates=" + snapshot.playUrls.size()
                         + " primary=" + first.source + " format=" + (audio ? "mp3" : "mp4"));
@@ -109,7 +108,7 @@ final class VideoDownloader {
                     result = enqueueWithDownloadManager(context, snapshot, fileName);
                 }
             } catch (Throwable error) {
-                Log.e(DouyinModule.TAG,
+                LogBook.e(
                         "video download failed unexpectedly: aid=" + snapshot.aid,
                         error);
                 result = DownloadResult.failed();
@@ -163,20 +162,20 @@ final class VideoDownloader {
                     AudioTranscoder.toMp3(source, mp3);
                     ensureEnabled();
                     publishAudio(context, mp3, fileName);
-                    Log.i(DouyinModule.TAG, "audio download completed: aid=" + snapshot.aid
+                    LogBook.i("audio download completed: aid=" + snapshot.aid
                             + " bytes=" + mp3.length() + " file=" + fileName);
                     return DownloadResult.completed(fileName);
                 } catch (IOException | RuntimeException error) {
                     lastError = new IOException(error.getMessage(), error);
-                    Log.w(DouyinModule.TAG, "audio candidate failed: " + candidate.source, error);
+                    LogBook.w("audio candidate failed: " + candidate.source, error);
                 } finally {
                     if (connection != null) connection.disconnect();
                 }
             }
             return DownloadResult.failed(lastError == null ? null : lastError.getMessage());
         } finally {
-            if (!source.delete()) Log.w(DouyinModule.TAG, "could not delete temporary source");
-            if (mp3 != null && !mp3.delete()) Log.w(DouyinModule.TAG, "could not delete temporary MP3");
+            if (!source.delete()) LogBook.w("could not delete temporary source");
+            if (mp3 != null && !mp3.delete()) LogBook.w("could not delete temporary MP3");
         }
     }
 
@@ -221,7 +220,7 @@ final class VideoDownloader {
                 MediaScannerConnection.scanFile(context,
                         new String[]{destination.getAbsolutePath()}, new String[]{"audio/mpeg"}, null);
             } finally {
-                if (!published && !destination.delete()) Log.w(DouyinModule.TAG, "partial audio cleanup failed");
+                if (!published && !destination.delete()) LogBook.w("partial audio cleanup failed");
             }
         }
     }
@@ -286,7 +285,7 @@ final class VideoDownloader {
                 if (resolver.update(destination, values, null, null) != 1) {
                     throw new IOException("failed to publish MediaStore download");
                 }
-                Log.i(DouyinModule.TAG,
+                LogBook.i(
                         "download completed: aid=" + snapshot.aid
                                 + " source=" + candidate.source
                                 + " host=" + Uri.parse(candidate.url).getHost()
@@ -299,12 +298,12 @@ final class VideoDownloader {
                     try {
                         resolver.delete(destination, null, null);
                     } catch (RuntimeException cleanupError) {
-                        Log.w(DouyinModule.TAG,
+                        LogBook.w(
                                 "failed to remove partial download",
                                 cleanupError);
                     }
                 }
-                Log.w(DouyinModule.TAG,
+                LogBook.w(
                         "download candidate failed: aid=" + snapshot.aid
                                 + " source=" + candidate.source
                                 + " host=" + Uri.parse(candidate.url).getHost(),
@@ -315,7 +314,7 @@ final class VideoDownloader {
                 }
             }
         }
-        Log.e(DouyinModule.TAG,
+        LogBook.e(
                 "all playback download URLs failed: aid=" + snapshot.aid,
                 lastError);
         return DownloadResult.failed();
@@ -348,7 +347,7 @@ final class VideoDownloader {
         );
         addRequestHeaders(request);
         long downloadId = manager.enqueue(request);
-        Log.i(DouyinModule.TAG,
+        LogBook.i(
                 "download queued: aid=" + snapshot.aid
                         + " source=" + candidate.source
                         + " id=" + downloadId

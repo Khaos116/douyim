@@ -2,7 +2,6 @@ package com.zz.douyin.hook;
 
 import android.annotation.SuppressLint;
 import android.os.SystemClock;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -53,7 +52,7 @@ final class ImmersiveTouchGuard {
                                     longClickEnabled.getBoolean(view)
                                             && ImmersiveTouchPolicy.isSideLongPress(
                                             event.getX(), view.getWidth()));
-                            Log.d(DouyinModule.TAG, "immersive gesture down: side="
+                            LogBook.d("immersive gesture down: side="
                                     + ImmersiveTouchPolicy.isSideLongPress(
                                     event.getX(), view.getWidth()) + ", blockedControls="
                                     + (blockedGestureTime == event.getDownTime() ? blockedControls : 0));
@@ -67,7 +66,7 @@ final class ImmersiveTouchGuard {
                             if (saved != null && action == MotionEvent.ACTION_UP
                                     && event.getEventTime() - event.getDownTime() > 500L) {
                                 long position = readPosition(saved.engine);
-                                Log.d(DouyinModule.TAG, "immersive long press finished: heldMs="
+                                LogBook.d("immersive long press finished: heldMs="
                                         + (SystemClock.uptimeMillis() - saved.startedAt)
                                         + ", playbackDeltaMs=" + (position < 0 || saved.position < 0
                                         ? "unknown" : position - saved.position));

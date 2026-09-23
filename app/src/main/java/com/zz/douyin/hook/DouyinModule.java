@@ -3,7 +3,6 @@ package com.zz.douyin.hook;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.SharedPreferences;
-import android.util.Log;
 import android.view.MotionEvent;
 
 import java.lang.reflect.Method;
@@ -21,7 +20,7 @@ public final class DouyinModule extends XposedModule {
 
     @Override
     public void onModuleLoaded(ModuleLoadedParam param) {
-        log(Log.INFO, TAG, "loaded in " + param.getProcessName()
+        LogBook.i("loaded in " + param.getProcessName()
                 + ", framework=" + getFrameworkName()
                 + ", api=" + getApiVersion());
     }
@@ -33,7 +32,7 @@ public final class DouyinModule extends XposedModule {
         }
         synchronized (INSTALLED_LOADERS) {
             if (!INSTALLED_LOADERS.add(param.getClassLoader())) {
-                log(Log.DEBUG, TAG, "hooks already installed for this class loader");
+                LogBook.d("hooks already installed for this class loader");
                 return;
             }
         }
@@ -69,15 +68,15 @@ public final class DouyinModule extends XposedModule {
                 "player tracker",
                 () -> PlayerHooks.install(this, param.getClassLoader())
         );
-        log(Log.INFO, TAG, "hook installation finished for " + param.getPackageName());
+        LogBook.i("hook installation finished for " + param.getPackageName());
     }
 
     private void installSubsystem(String name, HookInstaller installer) {
         try {
             installer.install();
-            log(Log.INFO, TAG, "hook subsystem installed: " + name);
+            LogBook.i("hook subsystem installed: " + name);
         } catch (Throwable error) {
-            log(Log.ERROR, TAG, "hook subsystem failed: " + name, error);
+            LogBook.e("hook subsystem failed: " + name, error);
         }
     }
 

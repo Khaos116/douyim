@@ -3,7 +3,6 @@ package com.zz.douyin.hook;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.os.SystemClock;
-import android.util.Log;
 import android.view.View;
 
 import com.zz.douyin.FilterPreferences;
@@ -84,10 +83,10 @@ final class FeedContentTracker {
                         return result;
                     });
         } catch (NoSuchMethodException error) {
-            module.log(Log.WARN, DouyinModule.TAG,
+            LogBook.w(
                     "feed page-selection hook unavailable; using visible-panel fallback");
         }
-        module.log(Log.INFO, DouyinModule.TAG, "current feed model hook installed");
+        LogBook.i("current feed model hook installed");
     }
 
     private static synchronized void configurePreferences(
@@ -174,7 +173,7 @@ final class FeedContentTracker {
                     bestAweme = aweme;
                 }
             } catch (ReflectiveOperationException | RuntimeException error) {
-                Log.d(DouyinModule.TAG, "current feed model lookup failed", error);
+                LogBook.d("current feed model lookup failed", error);
             }
         }
         return bestAweme == null ? null : snapshot(bestAweme, filterSettings);
