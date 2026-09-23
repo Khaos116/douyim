@@ -54,6 +54,7 @@ final class ImmersiveUi {
     private static volatile boolean blockDoubleTap;
     private static volatile boolean immersiveEnabled = true;
     private static volatile boolean autoNextEnabled = true;
+    private static volatile boolean exactCountsEnabled = true;
     private static String lastAutoNextAid;
     private static boolean lastAutoNextFired;
     private static SharedPreferences immersivePreferences;
@@ -127,6 +128,7 @@ final class ImmersiveUi {
         blockDoubleTap = com.zz.douyin.FilterPreferences.readBlockDoubleTap(preferences);
         immersiveEnabled = com.zz.douyin.FilterPreferences.readImmersiveEnabled(preferences);
         autoNextEnabled = com.zz.douyin.FilterPreferences.readAutoNext(preferences);
+        exactCountsEnabled = com.zz.douyin.FilterPreferences.readExactCounts(preferences);
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
         MAIN.post(() -> {
             if (changed) {
@@ -540,6 +542,12 @@ final class ImmersiveUi {
         if (checkCurrentFeedContent(decor)) {
             scheduleNextScan();
             return;
+        }
+
+        if (exactCountsEnabled) {
+            ExactCounts.apply(decor);
+        } else {
+            ExactCounts.restoreAll();
         }
 
         boolean keepUiHidden = immersiveEnabled && PlaybackState.shouldKeepUiHidden();
@@ -1470,6 +1478,12 @@ final class ImmersiveUi {
                 LogBook.d(
                         "feed item accepted as video: "
                                 + model.classificationDetails());
+                LogBook.i("[Statistics] aid=" + model.aid
+                        + " digg=" + model.diggCount
+                        + " comment=" + model.commentCount
+                        + " collect=" + model.collectCount
+                        + " share=" + model.shareCount
+                        + " play=" + model.playCount);
             }
             return false;
         }

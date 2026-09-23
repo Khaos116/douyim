@@ -7,6 +7,7 @@ import android.view.View;
 
 import com.zz.douyin.FilterPreferences;
 import com.zz.douyin.hook.model.AwemeAccessor;
+import com.zz.douyin.hook.model.StatisticsAccessor;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
@@ -221,6 +222,12 @@ public final class FeedContentTracker {
         List<PlayUrl> playUrls = AwemeAccessor.resolvePlayUrls(video);
         String title = model.title();
         String description = model.description();
+        StatisticsAccessor statistics = new StatisticsAccessor(model.statistics());
+        long diggCount = statistics.diggCount();
+        long commentCount = statistics.commentCount();
+        long collectCount = statistics.collectCount();
+        long shareCount = statistics.shareCount();
+        long playCount = statistics.playCount();
         boolean photo =
                 hostImage
                         || hostMultiImage
@@ -280,6 +287,11 @@ public final class FeedContentTracker {
                 slides,
                 title,
                 description,
+                diggCount,
+                commentCount,
+                collectCount,
+                shareCount,
+                playCount,
                 reason,
                 playUrls
         );
@@ -300,6 +312,11 @@ public final class FeedContentTracker {
         final boolean slides;
         final String title;
         final String description;
+        final long diggCount;
+        final long commentCount;
+        final long collectCount;
+        final long shareCount;
+        final long playCount;
         final String filterReason;
         final List<PlayUrl> playUrls;
 
@@ -318,6 +335,11 @@ public final class FeedContentTracker {
                 boolean slides,
                 String title,
                 String description,
+                long diggCount,
+                long commentCount,
+                long collectCount,
+                long shareCount,
+                long playCount,
                 String filterReason,
                 List<PlayUrl> playUrls
         ) {
@@ -335,6 +357,11 @@ public final class FeedContentTracker {
             this.slides = slides;
             this.title = title;
             this.description = description;
+            this.diggCount = diggCount;
+            this.commentCount = commentCount;
+            this.collectCount = collectCount;
+            this.shareCount = shareCount;
+            this.playCount = playCount;
             this.filterReason = filterReason;
             this.playUrls = playUrls;
         }

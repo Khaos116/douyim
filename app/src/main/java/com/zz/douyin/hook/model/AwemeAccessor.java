@@ -119,6 +119,17 @@ public final class AwemeAccessor {
         );
     }
 
+    public Object statistics() {
+        Object statistics = invokeNoArg(type, aweme, "getStatistics");
+        if (statistics == null) {
+            statistics = readField(type, aweme, "statistics");
+        }
+        if (statistics == null) {
+            statistics = readSerializedField(aweme, "statistics");
+        }
+        return statistics;
+    }
+
     public static Object readField(Class<?> type, Object instance, String name) {
         try {
             Field field = type.getField(name);
@@ -170,6 +181,14 @@ public final class AwemeAccessor {
         return value != null && value.getClass().isArray()
                 ? Array.getLength(value)
                 : 0;
+    }
+
+    public static long longValue(Object value, long fallback) {
+        return value instanceof Number number ? number.longValue() : fallback;
+    }
+
+    public static double doubleValue(Object value, double fallback) {
+        return value instanceof Number number ? number.doubleValue() : fallback;
     }
 
     public static String stringValue(Object value) {

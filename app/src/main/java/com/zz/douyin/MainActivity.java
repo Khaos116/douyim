@@ -39,6 +39,7 @@ public final class MainActivity extends Activity
     private Switch skipVideos;
     private Switch showDanmaku;
     private Switch autoNext;
+    private Switch exactCounts;
     private EditText keywordInput;
     private Button saveKeywords;
     private SharedPreferences preferences;
@@ -161,6 +162,10 @@ public final class MainActivity extends Activity
         autoNext = addSwitch(playbackCard, "播放完成自动下一条",
                 "当前视频播完后自动上滑到下一条；关闭后停在末尾",
                 FilterPreferences.KEY_AUTO_NEXT);
+        addDivider(playbackCard);
+        exactCounts = addSwitch(playbackCard, "精确显示互动数",
+                "点赞/评论/收藏显示完整数字，不再缩写为“万”",
+                FilterPreferences.KEY_EXACT_COUNTS);
         LinearLayout.LayoutParams playbackCardParams = matchWrap();
         playbackCardParams.topMargin = dp(10);
         root.addView(playbackCard, playbackCardParams);
@@ -272,6 +277,7 @@ public final class MainActivity extends Activity
         skipVideos.setChecked(values.skipVideos);
         showDanmaku.setChecked(FilterPreferences.readShowDanmaku(preferences));
         autoNext.setChecked(FilterPreferences.readAutoNext(preferences));
+        exactCounts.setChecked(FilterPreferences.readExactCounts(preferences));
         keywordInput.setText(values.keywordText);
         keywordInput.setSelection(keywordInput.length());
         serviceStatus.setText(
@@ -359,6 +365,7 @@ public final class MainActivity extends Activity
         skipVideos.setEnabled(enabled);
         showDanmaku.setEnabled(enabled);
         autoNext.setEnabled(enabled);
+        exactCounts.setEnabled(enabled);
         keywordInput.setEnabled(enabled);
         saveKeywords.setEnabled(enabled);
         saveKeywords.setAlpha(enabled ? 1f : 0.45f);

@@ -21,6 +21,7 @@ public final class FilterPreferences {
     public static final String KEY_VIDEO_KEYWORDS = "video_keywords";
     public static final String KEY_SHOW_DANMAKU = "show_danmaku";
     public static final String KEY_AUTO_NEXT = "auto_next";
+    public static final String KEY_EXACT_COUNTS = "exact_counts";
 
     public static final boolean DEFAULT_SKIP_ADS = true;
     public static final boolean DEFAULT_SKIP_IMAGES = true;
@@ -28,6 +29,7 @@ public final class FilterPreferences {
     public static final boolean DEFAULT_SKIP_VIDEOS = false;
     public static final boolean DEFAULT_SHOW_DANMAKU = false;
     public static final boolean DEFAULT_AUTO_NEXT = true;
+    public static final boolean DEFAULT_EXACT_COUNTS = true;
 
     private FilterPreferences() {
     }
@@ -77,6 +79,12 @@ public final class FilterPreferences {
         return preferences == null
                 ? DEFAULT_AUTO_NEXT
                 : preferences.getBoolean(KEY_AUTO_NEXT, DEFAULT_AUTO_NEXT);
+    }
+
+    public static boolean readExactCounts(SharedPreferences preferences) {
+        return preferences == null
+                ? DEFAULT_EXACT_COUNTS
+                : preferences.getBoolean(KEY_EXACT_COUNTS, DEFAULT_EXACT_COUNTS);
     }
 
     public static final class Values {
