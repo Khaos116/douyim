@@ -6,27 +6,20 @@ import android.os.SystemClock;
 import android.view.View;
 
 import com.zz.douyin.FilterPreferences;
+import com.zz.douyin.hook.model.AwemeAccessor;
 
-import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.WeakHashMap;
 
-final class FeedContentTracker {
+public final class FeedContentTracker {
     private static final Map<Object, Long> PANELS =
-            Collections.synchronizedMap(new WeakHashMap<>());
-    private static final Map<Class<?>, Map<String, Field>> SERIALIZED_FIELDS =
             Collections.synchronizedMap(new WeakHashMap<>());
 
     private static Class<?> panelClass;
@@ -210,48 +203,24 @@ final class FeedContentTracker {
             Object aweme,
             FilterPreferences.Values settings
     ) {
-        Class<?> type = aweme.getClass();
-        String aid = stringValue(readField(type, aweme, "aid"));
-        int awemeType = intValue(readField(type, aweme, "awemeType"), -1);
-        boolean ad = booleanValue(readField(type, aweme, "isAd"));
-        Object rawAd = invokeNoArg(type, aweme, "getAwemeRawAd");
-        boolean live = booleanValue(invokeNoArg(type, aweme, "isLive"))
-                || awemeType == 101;
-        boolean hostImage = booleanValue(invokeNoArg(type, aweme, "isImage"));
-        boolean hostMultiImage =
-                booleanValue(invokeNoArg(type, aweme, "isMultiImage"));
-        boolean slides = booleanValue(readField(type, aweme, "isSlides"));
-        Object video = readField(type, aweme, "video");
-        if (video == null) {
-            video = readSerializedField(aweme, "video");
-        }
-        Object article = readField(type, aweme, "articleInfo");
-        if (article == null) {
-            article = readSerializedField(aweme, "article_info");
-        }
-        Object images = readField(type, aweme, "images");
-        if (images == null) {
-            images = readSerializedField(aweme, "images");
-        }
-        Object imageInfos = readField(type, aweme, "imageInfos");
-        if (imageInfos == null) {
-            imageInfos = readSerializedField(aweme, "image_infos");
-        }
-        int imageCount = collectionSize(images);
-        int imageInfoCount = collectionSize(imageInfos);
-        List<PlayUrl> playUrls = resolvePlayUrls(video);
-        String title = firstNonBlank(
-                textValue(readField(type, aweme, "itemTitle")),
-                textValue(readSerializedField(aweme, "item_title")),
-                textValue(readField(type, aweme, "title")),
-                textValue(readSerializedField(aweme, "title"))
-        );
-        String description = firstNonBlank(
-                textValue(readField(type, aweme, "desc")),
-                textValue(readSerializedField(aweme, "desc")),
-                textValue(invokeNoArg(type, aweme, "getProcessedDesc")),
-                textValue(invokeNoArg(type, aweme, "getEllipsizeDesc"))
-        );
+        AwemeAccessor model = new AwemeAccessor(aweme);
+        String aid = model.aid();
+        int awemeType = model.awemeType();
+        boolean ad = model.isAd();
+        Object rawAd = model.rawAd();
+        boolean live = model.isLive();
+        boolean hostImage = model.isImage();
+        boolean hostMultiImage = model.isMultiImage();
+        boolean slides = model.isSlides();
+        Object video = model.video();
+        Object article = model.article();
+        Object images = model.images();
+        Object imageInfos = model.imageInfos();
+        int imageCount = AwemeAccessor.collectionSize(images);
+        int imageInfoCount = AwemeAccessor.collectionSize(imageInfos);
+        List<PlayUrl> playUrls = AwemeAccessor.resolvePlayUrls(video);
+        String title = model.title();
+        String description = model.description();
         boolean photo =
                 hostImage
                         || hostMultiImage
@@ -314,175 +283,6 @@ final class FeedContentTracker {
                 reason,
                 playUrls
         );
-    }
-
-    private static Object readField(Class<?> type, Object instance, String name) {
-        try {
-            Field field = type.getField(name);
-            return field.get(instance);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private static Object readSerializedField(Object instance, String serializedName) {
-        if (instance == null) {
-            return null;
-        }
-        Field field = findSerializedField(instance.getClass(), serializedName);
-        if (field == null) {
-            return null;
-        }
-        try {
-            return field.get(instance);
-        } catch (IllegalAccessException | RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private static Field findSerializedField(Class<?> type, String serializedName) {
-        synchronized (SERIALIZED_FIELDS) {
-            Map<String, Field> cached = SERIALIZED_FIELDS.computeIfAbsent(
-                    type,
-                    ignored -> new HashMap<>()
-            );
-            if (cached.containsKey(serializedName)) {
-                return cached.get(serializedName);
-            }
-            Field resolved = locateSerializedField(type, serializedName);
-            cached.put(serializedName, resolved);
-            return resolved;
-        }
-    }
-
-    private static Field locateSerializedField(Class<?> type, String serializedName) {
-        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
-            for (Field field : current.getDeclaredFields()) {
-                for (Annotation annotation : field.getDeclaredAnnotations()) {
-                    if (!"com.google.gson.annotations.SerializedName"
-                            .equals(annotation.annotationType().getName())) {
-                        continue;
-                    }
-                    try {
-                        Method valueMethod = annotation.annotationType().getMethod("value");
-                        Object value = valueMethod.invoke(annotation);
-                        if (serializedName.equals(value)) {
-                            field.setAccessible(true);
-                            return field;
-                        }
-                    } catch (ReflectiveOperationException | RuntimeException ignored) {
-                        // Keep looking: model variants can use a different Gson runtime.
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private static List<PlayUrl> resolvePlayUrls(Object video) {
-        if (video == null) {
-            return Collections.emptyList();
-        }
-        List<PlayUrl> urls = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        appendPlayUrls(urls, seen, video, "play_addr");
-        appendPlayUrls(urls, seen, video, "play_addr_h264");
-        appendPlayUrls(urls, seen, video, "play_addr_bytevc1");
-        return urls.isEmpty()
-                ? Collections.emptyList()
-                : Collections.unmodifiableList(urls);
-    }
-
-    private static void appendPlayUrls(
-            List<PlayUrl> output,
-            Set<String> seen,
-            Object video,
-            String source
-    ) {
-        Object address = readSerializedField(video, source);
-        if (address == null) {
-            return;
-        }
-        Class<?> addressType = address.getClass();
-        Object rawUrls = invokeNoArg(addressType, address, "getUrlList");
-        if (!(rawUrls instanceof List<?>)) {
-            rawUrls = readField(addressType, address, "urlList");
-        }
-        if (!(rawUrls instanceof List<?> candidates)) {
-            return;
-        }
-
-        appendUrlsWithScheme(output, seen, candidates, source, "https://");
-        appendUrlsWithScheme(output, seen, candidates, source, "http://");
-    }
-
-    private static void appendUrlsWithScheme(
-            List<PlayUrl> output,
-            Set<String> seen,
-            List<?> candidates,
-            String source,
-            String scheme
-    ) {
-        for (Object candidate : candidates) {
-            if (candidate == null) {
-                continue;
-            }
-            String url = candidate.toString().trim();
-            if (url.regionMatches(true, 0, scheme, 0, scheme.length())
-                    && seen.add(url)) {
-                output.add(new PlayUrl(url, source));
-            }
-        }
-    }
-
-    private static Object invokeNoArg(
-            Class<?> type,
-            Object instance,
-            String name
-    ) {
-        try {
-            Method method = type.getMethod(name);
-            return method.invoke(instance);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private static int intValue(Object value, int fallback) {
-        return value instanceof Number number ? number.intValue() : fallback;
-    }
-
-    private static boolean booleanValue(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        return value instanceof Number number && number.intValue() != 0;
-    }
-
-    private static int collectionSize(Object value) {
-        if (value instanceof Collection<?> collection) {
-            return collection.size();
-        }
-        return value != null && value.getClass().isArray()
-                ? Array.getLength(value)
-                : 0;
-    }
-
-    private static String stringValue(Object value) {
-        return value == null ? "unknown" : value.toString();
-    }
-
-    private static String textValue(Object value) {
-        return value instanceof CharSequence text ? text.toString().trim() : "";
-    }
-
-    private static String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (value != null && !value.isEmpty()) {
-                return value;
-            }
-        }
-        return "";
     }
 
     static final class Snapshot {
@@ -570,11 +370,11 @@ final class FeedContentTracker {
         }
     }
 
-    static final class PlayUrl {
+    public static final class PlayUrl {
         final String url;
         final String source;
 
-        PlayUrl(String url, String source) {
+        public PlayUrl(String url, String source) {
             this.url = url;
             this.source = source;
         }
