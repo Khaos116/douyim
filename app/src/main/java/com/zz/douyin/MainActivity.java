@@ -20,6 +20,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 import io.github.libxposed.service.XposedService;
@@ -58,6 +60,7 @@ public final class MainActivity extends Activity
     private EditText countColorInput;
     private EditText timeColorInput;
     private EditText locationColorInput;
+    private final Map<EditText, View> colorSwatches = new LinkedHashMap<>();
     private Button saveColors;
     private EditText keywordInput;
     private Button saveKeywords;
@@ -251,12 +254,9 @@ public final class MainActivity extends Activity
         );
         colorHint.setLineSpacing(0, 1.25f);
         colorCard.addView(colorHint, matchWrap());
-        countColorInput = addLabeledField(
-                colorCard, "精确数字颜色", "#FFFFFF", InputType.TYPE_CLASS_TEXT);
-        timeColorInput = addLabeledField(
-                colorCard, "发布时间颜色", "#FFFFFF", InputType.TYPE_CLASS_TEXT);
-        locationColorInput = addLabeledField(
-                colorCard, "IP属地/地点颜色", "#FFFFFF", InputType.TYPE_CLASS_TEXT);
+        countColorInput = addColorField(colorCard, "精确数字颜色");
+        timeColorInput = addColorField(colorCard, "发布时间颜色");
+        locationColorInput = addColorField(colorCard, "IP属地/地点颜色");
 
         saveColors = new Button(this);
         saveColors.setText("保存颜色");
@@ -553,6 +553,7 @@ public final class MainActivity extends Activity
         locationColorInput.setText(
                 com.zz.douyin.hook.FeedUiStyle.toHex(
                         FilterPreferences.readLocationTextColor(bound)));
+        refreshColorSwatches();
         keywordInput.setText(values.keywordText);
         keywordInput.setSelection(keywordInput.length());
     }
@@ -699,6 +700,9 @@ public final class MainActivity extends Activity
         countColorInput.setEnabled(enabled);
         timeColorInput.setEnabled(enabled);
         locationColorInput.setEnabled(enabled);
+        for (View swatch : colorSwatches.values()) {
+            swatch.setEnabled(enabled);
+        }
         saveColors.setEnabled(enabled);
         saveColors.setAlpha(enabled ? 1f : 0.45f);
         keywordInput.setEnabled(enabled);
@@ -717,6 +721,14 @@ public final class MainActivity extends Activity
         labelParams.topMargin = dp(14);
         parent.addView(labelView, labelParams);
         EditText input = new EditText(this);
+        styleTextInput(input, hint, inputType);
+        LinearLayout.LayoutParams inputParams = matchWrap();
+        inputParams.topMargin = dp(8);
+        parent.addView(input, inputParams);
+        return input;
+    }
+
+    private void styleTextInput(EditText input, String hint, int inputType) {
         input.setTextColor(TEXT_PRIMARY);
         input.setHintTextColor(Color.rgb(112, 114, 123));
         input.setTextSize(16);
@@ -727,10 +739,66 @@ public final class MainActivity extends Activity
         inputBackground.setStroke(dp(1), Color.rgb(58, 60, 68));
         input.setBackground(inputBackground);
         input.setPadding(dp(14), dp(12), dp(14), dp(12));
-        LinearLayout.LayoutParams inputParams = matchWrap();
-        inputParams.topMargin = dp(8);
-        parent.addView(input, inputParams);
+    }
+
+    private EditText addColorField(LinearLayout parent, String label) {
+        TextView labelView = text(label, 14, TEXT_PRIMARY);
+        LinearLayout.LayoutParams labelParams = matchWrap();
+        labelParams.topMargin = dp(14);
+        parent.addView(labelView, labelParams);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams rowParams = matchWrap();
+        rowParams.topMargin = dp(8);
+        parent.addView(row, rowParams);
+        EditText input = new EditText(this);
+        styleTextInput(input, "#FFFFFF", InputType.TYPE_CLASS_TEXT);
+        row.addView(input, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        View swatch = new View(this);
+        swatch.setContentDescription(label + "取色器");
+        swatch.setClickable(true);
+        swatch.setFocusable(true);
+        int swatchSize = dp(48);
+        LinearLayout.LayoutParams swatchParams =
+                new LinearLayout.LayoutParams(swatchSize, swatchSize);
+        swatchParams.leftMargin = dp(10);
+        row.addView(swatch, swatchParams);
+        colorSwatches.put(input, swatch);
+        refreshColorSwatch(input);
+        swatch.setOnClickListener(ignored -> openColorPicker(label, input));
         return input;
+    }
+
+    private void openColorPicker(String label, EditText target) {
+        int initial = com.zz.douyin.hook.FeedUiStyle.parseColor(
+                target.getText().toString().trim(),
+                FilterPreferences.DEFAULT_COUNT_TEXT_COLOR);
+        ColorPickerDialog.show(this, "选择" + label, initial, picked -> {
+            target.setText(ColorMath.toHex(picked));
+            refreshColorSwatch(target);
+            saveColorSettings();
+        });
+    }
+
+    private void refreshColorSwatches() {
+        for (EditText input : colorSwatches.keySet()) {
+            refreshColorSwatch(input);
+        }
+    }
+
+    private void refreshColorSwatch(EditText input) {
+        View swatch = colorSwatches.get(input);
+        if (swatch == null) {
+            return;
+        }
+        int color = com.zz.douyin.hook.FeedUiStyle.parseColor(
+                input.getText().toString().trim(),
+                FilterPreferences.DEFAULT_COUNT_TEXT_COLOR);
+        GradientDrawable swatchBackground = rounded(color, 12);
+        swatchBackground.setStroke(dp(1), Color.rgb(58, 60, 68));
+        swatch.setBackground(swatchBackground);
     }
 
     private void saveColorSettings() {
