@@ -50,6 +50,7 @@ public final class MainActivity extends Activity
     private Switch publishLocation;
     private Switch customColors;
     private Switch copyLink;
+    private Switch showProgress;
     private Switch hidePublish;
     private EditText hideTabsInput;
     private Button saveHideTabs;
@@ -223,6 +224,10 @@ public final class MainActivity extends Activity
         copyLink = addSwitch(playbackCard, "复制链接按钮",
                 "暂停时在下载按钮旁显示，一键复制当前视频无水印直链",
                 FilterPreferences.KEY_COPY_LINK);
+        addDivider(playbackCard);
+        showProgress = addSwitch(playbackCard, "常显播放进度条",
+                "沉浸播放时保留底部视频进度条，不随其他界面隐藏",
+                FilterPreferences.KEY_SHOW_PROGRESS);
         LinearLayout.LayoutParams playbackCardParams = matchWrap();
         playbackCardParams.topMargin = dp(10);
         root.addView(playbackCard, playbackCardParams);
@@ -525,6 +530,7 @@ public final class MainActivity extends Activity
         publishLocation.setChecked(FilterPreferences.readPublishLocation(bound));
         customColors.setChecked(FilterPreferences.readCustomTextColors(bound));
         copyLink.setChecked(FilterPreferences.readCopyLink(bound));
+        showProgress.setChecked(FilterPreferences.readShowProgress(bound));
         hidePublish.setChecked(FilterPreferences.readHidePublish(bound));
         hideTabsInput.setText(FilterPreferences.readHideTabs(bound));
         hideTabsInput.setSelection(hideTabsInput.length());
@@ -674,6 +680,7 @@ public final class MainActivity extends Activity
         publishLocation.setEnabled(enabled);
         customColors.setEnabled(enabled);
         copyLink.setEnabled(enabled);
+        showProgress.setEnabled(enabled);
         hidePublish.setEnabled(enabled);
         hideTabsInput.setEnabled(enabled);
         saveHideTabs.setEnabled(enabled);

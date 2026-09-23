@@ -60,6 +60,7 @@ final class ImmersiveUi {
     private static volatile boolean customColorsEnabled;
     private static volatile boolean copyLinkEnabled = true;
     private static volatile boolean hidePublishEnabled;
+    private static volatile boolean showProgressBar = true;
     private static volatile List<String> hideTabKeywords =
             Collections.emptyList();
     private static volatile int countTextColor = 0xFFFFFFFF;
@@ -93,6 +94,8 @@ final class ImmersiveUi {
     private static WeakReference<TextView> downloadButton =
             new WeakReference<>(null);
     private static WeakReference<TextView> copyLinkButton =
+            new WeakReference<>(null);
+    private static WeakReference<View> lastProgressLogged =
             new WeakReference<>(null);
     private static long lastHandledTouchDownTime;
     private static long contentCheckNotBefore;
@@ -151,6 +154,7 @@ final class ImmersiveUi {
         hidePublishEnabled = com.zz.douyin.FilterPreferences.readHidePublish(preferences);
         hideTabKeywords = FeedUiHider.parseKeywords(
                 com.zz.douyin.FilterPreferences.readHideTabs(preferences));
+        showProgressBar = com.zz.douyin.FilterPreferences.readShowProgress(preferences);
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
         MAIN.post(() -> {
             if (changed) {
@@ -630,6 +634,9 @@ final class ImmersiveUi {
             List<View> preservedViews = new ArrayList<>(videos);
             if (showDanmaku) {
                 collectVisibleDanmakuViews(decor, videos, preservedViews);
+            }
+            if (showProgressBar) {
+                collectVisibleProgressViews(decor, preservedViews);
             }
             restorePreservedPaths(preservedViews);
             hideOutsidePreservedPaths(decor, preservedViews);
@@ -1283,6 +1290,47 @@ final class ImmersiveUi {
         if (node instanceof ViewGroup group) {
             for (int i = 0; i < group.getChildCount(); i++) {
                 collectVisibleDanmakuViews(group.getChildAt(i), videos, out);
+            }
+        }
+    }
+
+    private static void collectVisibleProgressViews(View decor, List<View> out) {
+        collectProgressViews(decor, decor.getWidth(), decor.getHeight(), out);
+    }
+
+    private static void collectProgressViews(
+            View node,
+            int decorWidth,
+            int decorHeight,
+            List<View> out
+    ) {
+        if (node.isAttachedToWindow()
+                && node.getVisibility() == View.VISIBLE
+                && !out.contains(node)
+                && ProgressBarClassifier.isCandidateClass(
+                        node.getClass().getName())) {
+            int[] location = new int[2];
+            node.getLocationOnScreen(location);
+            if (ProgressBarClassifier.isProgressBar(
+                    node.getClass().getName(),
+                    node.getWidth(),
+                    node.getHeight(),
+                    location[1],
+                    decorWidth,
+                    decorHeight)) {
+                out.add(node);
+                View logged = lastProgressLogged.get();
+                if (logged != node) {
+                    lastProgressLogged = new WeakReference<>(node);
+                    LogBook.i("[FeedUi] preserve progress view="
+                            + node.getClass().getName());
+                }
+            }
+        }
+        if (node instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                collectProgressViews(
+                        group.getChildAt(i), decorWidth, decorHeight, out);
             }
         }
     }

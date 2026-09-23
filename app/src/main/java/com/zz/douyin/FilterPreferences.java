@@ -33,6 +33,7 @@ public final class FilterPreferences {
     public static final String KEY_COPY_LINK = "copy_link";
     public static final String KEY_HIDE_PUBLISH = "hide_publish";
     public static final String KEY_HIDE_TABS = "hide_tabs";
+    public static final String KEY_SHOW_PROGRESS = "show_progress";
 
     public static final boolean DEFAULT_SKIP_ADS = true;
     public static final boolean DEFAULT_SKIP_IMAGES = true;
@@ -52,6 +53,7 @@ public final class FilterPreferences {
     public static final boolean DEFAULT_COPY_LINK = true;
     public static final boolean DEFAULT_HIDE_PUBLISH = false;
     public static final String DEFAULT_HIDE_TABS = "";
+    public static final boolean DEFAULT_SHOW_PROGRESS = true;
 
     private FilterPreferences() {
     }
@@ -166,6 +168,12 @@ public final class FilterPreferences {
         }
         String raw = preferences.getString(KEY_HIDE_TABS, DEFAULT_HIDE_TABS);
         return raw == null ? DEFAULT_HIDE_TABS : raw;
+    }
+
+    public static boolean readShowProgress(SharedPreferences preferences) {
+        return preferences == null
+                ? DEFAULT_SHOW_PROGRESS
+                : preferences.getBoolean(KEY_SHOW_PROGRESS, DEFAULT_SHOW_PROGRESS);
     }
 
     public static final class Values {
