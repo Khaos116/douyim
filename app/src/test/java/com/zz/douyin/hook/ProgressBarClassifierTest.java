@@ -1,5 +1,6 @@
 package com.zz.douyin.hook;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -24,6 +25,29 @@ public final class ProgressBarClassifierTest {
         assertFalse(ProgressBarClassifier.isProgressBar(
                 "android.widget.FrameLayout",
                 1000, 12, 2100, 1080, 2280));
+    }
+
+    @Test
+    public void decomposedChecksAgreeWithMatcher() {
+        assertTrue(ProgressBarClassifier.matchesProgressSize(1000, 12, 1080, 2280));
+        assertTrue(ProgressBarClassifier.isBottomStrip(2100, 2280));
+        assertFalse(ProgressBarClassifier.matchesProgressSize(400, 12, 1080, 2280));
+        assertFalse(ProgressBarClassifier.matchesProgressSize(1000, 200, 1080, 2280));
+        assertFalse(ProgressBarClassifier.isBottomStrip(500, 2280));
+    }
+
+    @Test
+    public void rejectStageNamesFirstFailingCheck() {
+        assertEquals("", ProgressBarClassifier.rejectStage(
+                "android.widget.SeekBar", 1000, 12, 2100, 1080, 2280));
+        assertEquals("class", ProgressBarClassifier.rejectStage(
+                "android.widget.FrameLayout", 1000, 12, 2100, 1080, 2280));
+        assertEquals("width", ProgressBarClassifier.rejectStage(
+                "android.widget.SeekBar", 400, 12, 2100, 1080, 2280));
+        assertEquals("height", ProgressBarClassifier.rejectStage(
+                "android.widget.SeekBar", 1000, 200, 2100, 1080, 2280));
+        assertEquals("top", ProgressBarClassifier.rejectStage(
+                "android.widget.SeekBar", 1000, 12, 500, 1080, 2280));
     }
 
     @Test

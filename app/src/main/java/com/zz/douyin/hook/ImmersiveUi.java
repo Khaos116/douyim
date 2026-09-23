@@ -98,6 +98,10 @@ final class ImmersiveUi {
             new WeakReference<>(null);
     private static WeakReference<View> lastProgressLogged =
             new WeakReference<>(null);
+    private static WeakReference<View> lastProgressRejected =
+            new WeakReference<>(null);
+    private static WeakReference<View> lastProgressUnknown =
+            new WeakReference<>(null);
     private static String lastLiveTabKeepAid;
     private static String lastUserPausedKeepAid;
     private static long lastHandledTouchDownTime;
@@ -1311,24 +1315,36 @@ final class ImmersiveUi {
     ) {
         if (node.isAttachedToWindow()
                 && node.getVisibility() == View.VISIBLE
-                && !out.contains(node)
-                && ProgressBarClassifier.isCandidateClass(
-                        node.getClass().getName())) {
-            int[] location = new int[2];
-            node.getLocationOnScreen(location);
-            if (ProgressBarClassifier.isProgressBar(
-                    node.getClass().getName(),
-                    node.getWidth(),
-                    node.getHeight(),
-                    location[1],
-                    decorWidth,
-                    decorHeight)) {
-                out.add(node);
-                View logged = lastProgressLogged.get();
-                if (logged != node) {
-                    lastProgressLogged = new WeakReference<>(node);
-                    LogBook.i("[FeedUi] preserve progress view="
-                            + node.getClass().getName());
+                && !out.contains(node)) {
+            String className = node.getClass().getName();
+            boolean candidate =
+                    ProgressBarClassifier.isCandidateClass(className);
+            int width = node.getWidth();
+            int height = node.getHeight();
+            boolean sizeOk = ProgressBarClassifier.matchesProgressSize(
+                    width, height, decorWidth, decorHeight);
+            if (candidate || sizeOk) {
+                int[] location = new int[2];
+                node.getLocationOnScreen(location);
+                int top = location[1];
+                if (candidate
+                        && sizeOk
+                        && ProgressBarClassifier.isBottomStrip(
+                                top, decorHeight)) {
+                    out.add(node);
+                    View logged = lastProgressLogged.get();
+                    if (logged != node) {
+                        lastProgressLogged = new WeakReference<>(node);
+                        LogBook.i("[FeedUi] preserve progress view=" + className);
+                    }
+                } else if (candidate) {
+                    logProgressReject(
+                            node, className, width, height, top,
+                            decorWidth, decorHeight);
+                } else if (ProgressBarClassifier.isBottomStrip(top, decorHeight)) {
+                    logProgressUnknown(
+                            node, className, width, height, top,
+                            decorWidth, decorHeight);
                 }
             }
         }
@@ -1338,6 +1354,44 @@ final class ImmersiveUi {
                         group.getChildAt(i), decorWidth, decorHeight, out);
             }
         }
+    }
+
+    private static void logProgressReject(
+            View node,
+            String className,
+            int width,
+            int height,
+            int top,
+            int decorWidth,
+            int decorHeight
+    ) {
+        if (lastProgressRejected.get() == node) {
+            return;
+        }
+        lastProgressRejected = new WeakReference<>(node);
+        LogBook.i("[FeedUi] progress reject " + className
+                + " w=" + width + " h=" + height + " top=" + top
+                + " decor=" + decorWidth + "x" + decorHeight
+                + " stage=" + ProgressBarClassifier.rejectStage(
+                        className, width, height, top, decorWidth, decorHeight));
+    }
+
+    private static void logProgressUnknown(
+            View node,
+            String className,
+            int width,
+            int height,
+            int top,
+            int decorWidth,
+            int decorHeight
+    ) {
+        if (lastProgressUnknown.get() == node) {
+            return;
+        }
+        lastProgressUnknown = new WeakReference<>(node);
+        LogBook.i("[FeedUi] progress-like unknown class=" + className
+                + " w=" + width + " h=" + height + " top=" + top
+                + " decor=" + decorWidth + "x" + decorHeight);
     }
 
     private static boolean overlapsAnyVideo(View candidate, List<View> videos) {
