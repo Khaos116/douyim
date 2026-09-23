@@ -1,14 +1,19 @@
 package com.zz.douyin;
 
 import android.Manifest;
+import android.annotation.TargetApi;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -50,6 +55,13 @@ public final class LogViewerActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(buildContent());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // onResume also runs after onCreate, and again when returning from
+        // the all-files-access settings page, so one reload covers both.
         reload();
     }
 
@@ -231,9 +243,14 @@ public final class LogViewerActivity extends Activity {
             return;
         }
         if (!readable) {
-            statusView.setText("日志目录不可读，需要存储权限；"
-                    + "授权后仍不可读请用 adb 导出：\n"
-                    + "adb logcat -v threadtime -s DouyinImmersive");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                statusView.setText("日志目录不可读：Android 11+ 需要“允许管理所有文件”；"
+                        + "点下方按钮去设置中打开，回退后自动刷新");
+            } else {
+                statusView.setText("日志目录不可读，需要存储权限；"
+                        + "授权后仍不可读请用 adb 导出：\n"
+                        + "adb logcat -v threadtime -s DouyinImmersive");
+            }
             statusView.setTextColor(Color.rgb(255, 166, 77));
             permissionButton.setVisibility(View.VISIBLE);
             return;
@@ -273,17 +290,52 @@ public final class LogViewerActivity extends Activity {
     }
 
     private void requestStoragePermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            reload();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            requestAllFilesAccess();
             return;
         }
         try {
             requestPermissions(
-                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                    new String[]{
+                            Manifest.permission.READ_EXTERNAL_STORAGE,
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    },
                     REQUEST_STORAGE
             );
         } catch (RuntimeException failed) {
             Toast.makeText(this, "无法请求权限，请用 adb 导出日志", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /**
+     * Android 11+ gates another app's media dir behind all-files access, which
+     * cannot be requested inline; the user flips it in Settings (Sesame-M
+     * uses the same flow). Returning here triggers {@link #onResume}.
+     */
+    @TargetApi(Build.VERSION_CODES.R)
+    private void requestAllFilesAccess() {
+        try {
+            if (Environment.isExternalStorageManager()) {
+                reload();
+                return;
+            }
+        } catch (RuntimeException ignored) {
+            // Fall through to the settings page below.
+        }
+        Toast.makeText(this, "请允许“管理所有文件”，回退后自动刷新", Toast.LENGTH_LONG).show();
+        try {
+            Intent appPage = new Intent(
+                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+            appPage.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(appPage);
+            return;
+        } catch (ActivityNotFoundException ignored) {
+            // Some OEMs only expose the shared list; try that next.
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+        } catch (ActivityNotFoundException failed) {
+            Toast.makeText(this, "无法打开设置页，请手动允许管理所有文件", Toast.LENGTH_LONG).show();
         }
     }
 
