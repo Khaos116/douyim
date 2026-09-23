@@ -96,6 +96,55 @@ public final class FeedUiHiderTest {
     }
 
     @Test
+    public void publishClassNameMatchesTokens() {
+        assertTrue(FeedUiHider.isPublishClassName(
+                "com.ss.android.ugc.aweme.main.hometab.bottom.PublishButton"));
+        assertTrue(FeedUiHider.isPublishClassName(
+                "com.ss.android.ugc.aweme.main.MainPublishTab"));
+        assertFalse(FeedUiHider.isPublishClassName(
+                "com.ss.android.ugc.aweme.main.MainBottomTabContainer"));
+        assertFalse(FeedUiHider.isPublishClassName("android.widget.LinearLayout"));
+        assertFalse(FeedUiHider.isPublishClassName(null));
+    }
+
+    @Test
+    public void bottomTabClassNameMatchesContainerTokens() {
+        assertTrue(FeedUiHider.isBottomTabClassName(
+                "com.ss.android.ugc.aweme.main.MainBottomTabContainer"));
+        assertTrue(FeedUiHider.isBottomTabClassName(
+                "com.ss.android.ugc.aweme.main.hometab.HomeTabView"));
+        assertFalse(FeedUiHider.isBottomTabClassName(
+                "android.widget.FrameLayout"));
+        assertFalse(FeedUiHider.isBottomTabClassName(null));
+    }
+
+    @Test
+    public void matchesPublishClassWalksSuperclassChain() {
+        assertTrue(FeedUiHider.matchesPublishClass(FakePublishButton.class));
+        assertTrue(FeedUiHider.matchesPublishClass(FakePublishChild.class));
+        assertFalse(FeedUiHider.matchesPublishClass(String.class));
+        assertFalse(FeedUiHider.matchesPublishClass(null));
+    }
+
+    @Test
+    public void publishTabIdAcceptsRawAndMappedForms() {
+        assertTrue(FeedUiHider.isPublishTabId("PUBLISH"));
+        assertTrue(FeedUiHider.isPublishTabId("homepage_publish"));
+        assertFalse(FeedUiHider.isPublishTabId("HOME"));
+        assertFalse(FeedUiHider.isPublishTabId("homepage_home"));
+        assertFalse(FeedUiHider.isPublishTabId(null));
+    }
+
+    @Test
+    public void resolveTabIdReadsTabIdAndObfuscatedField() {
+        assertEquals("PUBLISH", FeedUiHider.resolveTabId(new FakeTabWithId()));
+        assertEquals("homepage_publish", FeedUiHider.resolveTabId(new FakeTabWithObfuscatedId()));
+        assertEquals("PUBLISH", FeedUiHider.resolveTabId(new FakeTabChild()));
+        assertEquals(null, FeedUiHider.resolveTabId(new Object()));
+        assertEquals(null, FeedUiHider.resolveTabId(null));
+    }
+
+    @Test
     public void parseKeywordsSplitsAndDedupes() {
         assertEquals(
                 List.of("商城", "精选"),
@@ -106,5 +155,22 @@ public final class FeedUiHiderTest {
                 FeedUiHider.parseKeywords("  \n，")
         );
         assertEquals(Collections.emptyList(), FeedUiHider.parseKeywords(null));
+    }
+
+    static class FakePublishButton {
+    }
+
+    static final class FakePublishChild extends FakePublishButton {
+    }
+
+    static class FakeTabWithId {
+        public String tabId = "PUBLISH";
+    }
+
+    static final class FakeTabChild extends FakeTabWithId {
+    }
+
+    static final class FakeTabWithObfuscatedId {
+        public String LIZJ = "homepage_publish";
     }
 }

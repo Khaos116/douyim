@@ -3,8 +3,10 @@ package com.zz.douyin.hook;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -16,13 +18,15 @@ import java.util.WeakHashMap;
 /**
  * Hides the bottom publish button and top tabs by user keywords.
  *
- * <p>Both finders are intentionally conservative: the publish button must sit
- * in the bottom-center area and be small, and tabs only match short texts in
- * the top strip. Anything hidden is tracked in its own map (never the
- * immersive alpha-based registry) and restored when its switch turns off, so
- * a missed guess never sticks. Every hide is logged for user feedback, and
- * matches are re-hidden while they keep matching, so a host re-show never
- * sticks either.
+ * <p>Publish detection is class-first: a view whose class chain names a
+ * publish tab/button, or a bottom-tab view whose reflected tab id says
+ * publish, is hidden directly. Geometry plus content-description stays as a
+ * fallback for hosts where the class names changed. Tabs only match short
+ * texts in the top strip. Anything hidden is tracked in its own map (never
+ * the immersive alpha-based registry) and restored when its switch turns
+ * off, so a missed guess never sticks. Every hide is logged for user
+ * feedback, and matches are re-hidden while they keep matching, so a host
+ * re-show never sticks either.
  */
 final class FeedUiHider {
     private static final double PUBLISH_TOP_FRACTION = 0.80;
@@ -34,8 +38,11 @@ final class FeedUiHider {
     private static final double TAB_ITEM_MAX_HEIGHT_FRACTION = 0.20;
     private static final double TAB_TOP_FRACTION = 0.22;
     private static final int TAB_MAX_TEXT_LENGTH = 12;
+    private static final String[] PUBLISH_CLASS_TOKENS = {"publishtab", "publishbutton"};
+    private static final String[] BOTTOM_TAB_CLASS_TOKENS = {"bottomtab", "hometab"};
+    private static final String[] TAB_ID_FIELD_NAMES = {"tabId", "LIZJ"};
 
-    private static final Map<View, Integer> PUBLISH_HIDDEN =
+    private static final Map<View, HiddenState> PUBLISH_HIDDEN =
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View, Integer> TAB_HIDDEN =
             Collections.synchronizedMap(new WeakHashMap<>());
@@ -50,7 +57,7 @@ final class FeedUiHider {
 
     static void applyPublishHide(View decor, boolean enabled) {
         if (!enabled) {
-            restoreMap(PUBLISH_HIDDEN, "publish");
+            restorePublish();
             return;
         }
         if (decor == null || decor.getWidth() <= 0 || decor.getHeight() <= 0) {
@@ -72,7 +79,7 @@ final class FeedUiHider {
     }
 
     static void restoreAll() {
-        restoreMap(PUBLISH_HIDDEN, "publish");
+        restorePublish();
         restoreMap(TAB_HIDDEN, "tabs");
     }
 
@@ -133,6 +140,102 @@ final class FeedUiHider {
                         <= decorWidth * PUBLISH_CENTER_TOLERANCE;
     }
 
+    static boolean isPublishClassName(String name) {
+        return containsToken(name, PUBLISH_CLASS_TOKENS);
+    }
+
+    static boolean isBottomTabClassName(String name) {
+        return containsToken(name, BOTTOM_TAB_CLASS_TOKENS);
+    }
+
+    static boolean matchesPublishClass(Class<?> clazz) {
+        return matchesClassTokens(clazz, PUBLISH_CLASS_TOKENS);
+    }
+
+    static boolean matchesBottomTabClass(Class<?> clazz) {
+        return matchesClassTokens(clazz, BOTTOM_TAB_CLASS_TOKENS);
+    }
+
+    static boolean isPublishTabId(String raw) {
+        return "PUBLISH".equals(raw) || "homepage_publish".equals(raw);
+    }
+
+    /**
+     * Reads the tab id field ({@code tabId}, obfuscated {@code LIZJ}) off a
+     * bottom-tab object, walking superclasses. Returns the raw value or null.
+     */
+    static String resolveTabId(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        for (Class<?> current = obj.getClass();
+                current != null && !current.equals(Object.class);
+                current = current.getSuperclass()) {
+            Field[] fields;
+            try {
+                fields = current.getDeclaredFields();
+            } catch (RuntimeException ignored) {
+                continue;
+            }
+            for (Field field : fields) {
+                if (!isTabIdField(field.getName())) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(obj);
+                    if (value instanceof String) {
+                        return (String) value;
+                    }
+                } catch (RuntimeException | IllegalAccessException ignored) {
+                    // Keep scanning: another field may hold the id.
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean matchesClassTokens(Class<?> clazz, String[] tokens) {
+        for (Class<?> current = clazz;
+                current != null && !current.equals(Object.class);
+                current = current.getSuperclass()) {
+            if (containsToken(current.getName(), tokens)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsToken(String name, String[] tokens) {
+        if (name == null) {
+            return false;
+        }
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        for (String token : tokens) {
+            if (lower.contains(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isTabIdField(String name) {
+        for (String candidate : TAB_ID_FIELD_NAMES) {
+            if (candidate.equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isPublishTabView(View view) {
+        if (matchesPublishClass(view.getClass())) {
+            return true;
+        }
+        return matchesBottomTabClass(view.getClass())
+                && isPublishTabId(resolveTabId(view));
+    }
+
     static boolean matchesTabKeyword(String text, List<String> keywords) {
         if (text == null || keywords == null || keywords.isEmpty()) {
             return false;
@@ -169,37 +272,10 @@ final class FeedUiHider {
 
     private static void collectPublishCandidates(View node, int decorWidth, int decorHeight) {
         if (node.isShown()) {
-            node.getLocationOnScreen(LOCATION);
-            int centerX = LOCATION[0] + node.getWidth() / 2;
-            CharSequence description = node.getContentDescription();
-            String desc = description == null ? "" : description.toString();
-            boolean descHasPublish = desc.contains("发布");
-            boolean clickable = node.isClickable();
-            boolean geometry = isPublishGeometry(
-                    centerX,
-                    LOCATION[1],
-                    node.getWidth(),
-                    node.getHeight(),
-                    decorWidth,
-                    decorHeight);
-            boolean signal = isPublishSignal(clickable, descHasPublish);
-            if (geometry && signal) {
-                hideInto(PUBLISH_HIDDEN, node, "publish");
-            }
-            if (descHasPublish) {
-                hidePublishTabItem(node, centerX, LOCATION[1], decorWidth, decorHeight);
-            }
-            if (!descHasPublish
-                    && !(geometry && signal)
-                    && (geometry || signal)
-                    && PUBLISH_MISS_LOGGED.add(node)) {
-                LogBook.i("[FeedUi] publish miss " + node.getClass().getName()
-                        + " geo=" + geometry + " sig=" + signal
-                        + " w=" + node.getWidth() + " h=" + node.getHeight()
-                        + " top=" + LOCATION[1] + " cx=" + centerX
-                        + " decor=" + decorWidth + "x" + decorHeight
-                        + " clickable=" + clickable
-                        + " desc=" + abbreviate(desc));
+            if (isPublishTabView(node)) {
+                hidePublishView(node, "publish-tab");
+            } else {
+                collectPublishFallback(node, decorWidth, decorHeight);
             }
         }
         if (node instanceof ViewGroup group) {
@@ -209,13 +285,47 @@ final class FeedUiHider {
         }
     }
 
+    private static void collectPublishFallback(View node, int decorWidth, int decorHeight) {
+        node.getLocationOnScreen(LOCATION);
+        int centerX = LOCATION[0] + node.getWidth() / 2;
+        CharSequence description = node.getContentDescription();
+        String desc = description == null ? "" : description.toString();
+        boolean descHasPublish = desc.contains("发布");
+        boolean clickable = node.isClickable();
+        boolean geometry = isPublishGeometry(
+                centerX,
+                LOCATION[1],
+                node.getWidth(),
+                node.getHeight(),
+                decorWidth,
+                decorHeight);
+        boolean signal = isPublishSignal(clickable, descHasPublish);
+        if (geometry && signal) {
+            hidePublishView(node, "publish");
+        }
+        if (descHasPublish) {
+            hidePublishTabItem(node, centerX, LOCATION[1], decorWidth, decorHeight);
+        }
+        if (!descHasPublish
+                && !(geometry && signal)
+                && (geometry || signal)
+                && PUBLISH_MISS_LOGGED.add(node)) {
+            LogBook.i("[FeedUi] publish miss " + node.getClass().getName()
+                    + " geo=" + geometry + " sig=" + signal
+                    + " w=" + node.getWidth() + " h=" + node.getHeight()
+                    + " top=" + LOCATION[1] + " cx=" + centerX
+                    + " decor=" + decorWidth + "x" + decorHeight
+                    + " clickable=" + clickable
+                    + " desc=" + abbreviate(desc));
+        }
+    }
+
     /**
      * Hides the whole bottom-tab item anchored by a "发布" description,
      * climbing from the (possibly tiny) described view up to the largest
-     * ancestor that still fits a tab item. Both references hide the tab unit
-     * rather than the glyph: FreedomPlus hides the X-named wrapper, DYHelper
-     * resolves the button class; the size-bounded climb is the DexKit-free
-     * equivalent.
+     * ancestor that still fits a tab item. This is only the fallback for
+     * hosts where the publish class names changed; normally the class/tab-id
+     * path hides the tab directly.
      */
     private static void hidePublishTabItem(
             View node, int centerX, int top, int decorWidth, int decorHeight) {
@@ -239,7 +349,7 @@ final class FeedUiHider {
             logPublishDescMiss(node, "size", decorWidth, decorHeight);
             return;
         }
-        hideInto(PUBLISH_HIDDEN, item, "publish-tab");
+        hidePublishView(item, "publish-tab");
     }
 
     private static void logPublishDescMiss(
@@ -299,6 +409,155 @@ final class FeedUiHider {
         }
         for (View view : stale) {
             restoreOne(TAB_HIDDEN, view);
+        }
+    }
+
+    /**
+     * Everything a publish hide touches, so switching the toggle off
+     * restores the tab exactly. Layout size uses MATCH/WRAP sentinels from
+     * the framework, so {@code hasLayout} marks whether size was captured.
+     */
+    static final class HiddenState {
+        final int visibility;
+        final boolean enabled;
+        final boolean clickable;
+        final boolean hasLayout;
+        final int width;
+        final int height;
+        final float weight;
+
+        HiddenState(
+                int visibility,
+                boolean enabled,
+                boolean clickable,
+                boolean hasLayout,
+                int width,
+                int height,
+                float weight
+        ) {
+            this.visibility = visibility;
+            this.enabled = enabled;
+            this.clickable = clickable;
+            this.hasLayout = hasLayout;
+            this.width = width;
+            this.height = height;
+            this.weight = weight;
+        }
+
+        static HiddenState capture(View view) {
+            boolean hasLayout = false;
+            int width = 0;
+            int height = 0;
+            float weight = Float.NaN;
+            try {
+                ViewGroup.LayoutParams params = view.getLayoutParams();
+                if (params != null) {
+                    hasLayout = true;
+                    width = params.width;
+                    height = params.height;
+                    if (params instanceof LinearLayout.LayoutParams) {
+                        weight = ((LinearLayout.LayoutParams) params).weight;
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                hasLayout = false;
+            }
+            return new HiddenState(
+                    view.getVisibility(),
+                    view.isEnabled(),
+                    view.isClickable(),
+                    hasLayout,
+                    width,
+                    height,
+                    weight
+            );
+        }
+    }
+
+    private static void hidePublishView(View view, String what) {
+        boolean first;
+        synchronized (PUBLISH_HIDDEN) {
+            first = !PUBLISH_HIDDEN.containsKey(view);
+            if (first) {
+                PUBLISH_HIDDEN.put(view, HiddenState.capture(view));
+            }
+        }
+        applyPublishHidden(view);
+        if (first) {
+            LogBook.i("[FeedUi] hide " + what + " view=" + view.getClass().getName());
+            return;
+        }
+        long now = SystemClock.uptimeMillis();
+        if (now - lastRehideLogAt >= REHIDE_LOG_INTERVAL_MS) {
+            lastRehideLogAt = now;
+            LogBook.i("[FeedUi] re-hide " + what + " view=" + view.getClass().getName());
+        }
+    }
+
+    private static void applyPublishHidden(View view) {
+        try {
+            view.setEnabled(false);
+            view.setClickable(false);
+            view.setVisibility(View.GONE);
+            ViewGroup.LayoutParams params = view.getLayoutParams();
+            if (params != null) {
+                params.width = 0;
+                params.height = 0;
+                if (params instanceof LinearLayout.LayoutParams) {
+                    ((LinearLayout.LayoutParams) params).weight = 0f;
+                }
+                view.setLayoutParams(params);
+            }
+            view.requestLayout();
+        } catch (RuntimeException ignored) {
+            // The host view is gone; its WeakHashMap entry dies with it.
+        }
+    }
+
+    private static void restorePublish() {
+        List<Map.Entry<View, HiddenState>> entries;
+        synchronized (PUBLISH_HIDDEN) {
+            if (PUBLISH_HIDDEN.isEmpty()) {
+                return;
+            }
+            entries = new ArrayList<>(PUBLISH_HIDDEN.entrySet());
+            PUBLISH_HIDDEN.clear();
+        }
+        int restored = 0;
+        for (Map.Entry<View, HiddenState> entry : entries) {
+            if (restorePublishValue(entry.getKey(), entry.getValue())) {
+                restored++;
+            }
+        }
+        if (restored > 0) {
+            LogBook.d("[FeedUi] restored publish views=" + restored);
+        }
+    }
+
+    private static boolean restorePublishValue(View view, HiddenState state) {
+        if (view == null || state == null) {
+            return false;
+        }
+        try {
+            view.setEnabled(state.enabled);
+            view.setClickable(state.clickable);
+            view.setVisibility(state.visibility);
+            if (state.hasLayout) {
+                ViewGroup.LayoutParams params = view.getLayoutParams();
+                if (params != null) {
+                    params.width = state.width;
+                    params.height = state.height;
+                    if (params instanceof LinearLayout.LayoutParams
+                            && !Float.isNaN(state.weight)) {
+                        ((LinearLayout.LayoutParams) params).weight = state.weight;
+                    }
+                    view.setLayoutParams(params);
+                }
+            }
+            view.requestLayout();
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
         }
     }
 
