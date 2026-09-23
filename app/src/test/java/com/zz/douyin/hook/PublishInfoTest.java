@@ -47,7 +47,7 @@ public final class PublishInfoTest {
     @Test
     public void composeTextRendersTimeIpAndPlace() {
         FeedContentTracker.Snapshot snapshot = snapshot(
-                1758000000000L, "四川", "春熙路", "", "");
+                1758000000000L, -1L, "四川", "春熙路", "", "");
 
         String expected = "发布于 "
                 + PublishInfo.formatTime(1758000000000L, TimeZone.getDefault())
@@ -57,8 +57,28 @@ public final class PublishInfoTest {
     }
 
     @Test
+    public void formatDurationRendersMinutesAndHours() {
+        assertEquals("0:00", PublishInfo.formatDuration(0L));
+        assertEquals("1:05", PublishInfo.formatDuration(65_000L));
+        assertEquals("1:02:03", PublishInfo.formatDuration(3_723_000L));
+        assertEquals("", PublishInfo.formatDuration(-1L));
+    }
+
+    @Test
+    public void composeTextAppendsDurationWhenKnown() {
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                1758000000000L, 125_000L, "", "", "", "");
+
+        String expected = "发布于 "
+                + PublishInfo.formatTime(1758000000000L, TimeZone.getDefault())
+                + " · 2:05";
+
+        assertEquals(expected, PublishInfo.composeText(snapshot, true, false));
+    }
+
+    @Test
     public void composeTextWithoutAnythingReturnsNull() {
-        FeedContentTracker.Snapshot snapshot = snapshot(-1L, "", "", "", "");
+        FeedContentTracker.Snapshot snapshot = snapshot(-1L, -1L, "", "", "", "");
 
         assertNull(PublishInfo.composeText(snapshot, true, true));
     }
@@ -66,7 +86,7 @@ public final class PublishInfoTest {
     @Test
     public void composeTextHonorsSwitches() {
         FeedContentTracker.Snapshot snapshot = snapshot(
-                1758000000000L, "四川", "春熙路", "", "");
+                1758000000000L, -1L, "四川", "春熙路", "", "");
 
         String locationOnly = PublishInfo.composeText(snapshot, false, true);
         assertTrue(locationOnly.startsWith("IP属地：四川"));
@@ -96,7 +116,7 @@ public final class PublishInfoTest {
     @Test
     public void composeOverlayMarksTimeAndLocationRanges() {
         FeedContentTracker.Snapshot snapshot = snapshot(
-                1758000000000L, "四川", "春熙路", "", "");
+                1758000000000L, -1L, "四川", "春熙路", "", "");
 
         PublishInfo.OverlayContent content =
                 PublishInfo.composeOverlay(snapshot, true, true);
@@ -116,7 +136,7 @@ public final class PublishInfoTest {
     @Test
     public void composeOverlayWithoutTimeStartsLocationAtZero() {
         FeedContentTracker.Snapshot snapshot = snapshot(
-                -1L, "四川", "", "", "");
+                -1L, -1L, "四川", "", "", "");
 
         PublishInfo.OverlayContent content =
                 PublishInfo.composeOverlay(snapshot, true, true);
@@ -129,7 +149,7 @@ public final class PublishInfoTest {
     @Test
     public void composeOverlayWithoutLocationLeavesRangeEmpty() {
         FeedContentTracker.Snapshot snapshot = snapshot(
-                1758000000000L, "", "", "", "");
+                1758000000000L, -1L, "", "", "", "");
 
         PublishInfo.OverlayContent content =
                 PublishInfo.composeOverlay(snapshot, true, true);
@@ -143,24 +163,25 @@ public final class PublishInfoTest {
     public void composeOverlayReturnsNullWhenEmpty() {
         assertNull(PublishInfo.composeOverlay(null, true, true));
         assertNull(PublishInfo.composeOverlay(
-                snapshot(-1L, "", "", "", ""), true, true));
+                snapshot(-1L, -1L, "", "", "", ""), true, true));
     }
 
     @Test
     public void displayPlacePrefersPoiOverLocationOverCity() {
         assertEquals("春熙路", PublishInfo.displayPlace(
-                snapshot(-1L, "", "春熙路", "太古里", "成都市")));
+                snapshot(-1L, -1L, "", "春熙路", "太古里", "成都市")));
         assertEquals("太古里", PublishInfo.displayPlace(
-                snapshot(-1L, "", "", "太古里", "成都市")));
+                snapshot(-1L, -1L, "", "", "太古里", "成都市")));
         assertEquals("成都市", PublishInfo.displayPlace(
-                snapshot(-1L, "", "", "", "成都市")));
+                snapshot(-1L, -1L, "", "", "", "成都市")));
         assertEquals("", PublishInfo.displayPlace(
-                snapshot(-1L, "", "", "", "")));
+                snapshot(-1L, -1L, "", "", "", "")));
         assertEquals("", PublishInfo.displayPlace(null));
     }
 
     private static FeedContentTracker.Snapshot snapshot(
             long createTimeMs,
+            long durationMs,
             String ipLabel,
             String poiName,
             String location,
@@ -172,7 +193,7 @@ public final class PublishInfoTest {
                 0, 0, false, false, false, false,
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
-                createTimeMs, -1L, ipLabel, poiName, location, city,
+                createTimeMs, durationMs, ipLabel, poiName, location, city,
                 null, Collections.emptyList());
     }
 }

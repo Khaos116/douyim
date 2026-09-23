@@ -139,9 +139,14 @@ final class PublishInfo {
         if (snapshot == null || snapshot.isAdvertisement()) {
             return null;
         }
-        String timeLine = timeEnabled && snapshot.createTimeMs > 0L
-                ? "发布于 " + formatTime(snapshot.createTimeMs, TimeZone.getDefault())
-                : null;
+        String timeLine = null;
+        if (timeEnabled && snapshot.createTimeMs > 0L) {
+            timeLine = "发布于 "
+                    + formatTime(snapshot.createTimeMs, TimeZone.getDefault());
+            if (snapshot.durationMs >= 0L) {
+                timeLine += " · " + formatDuration(snapshot.durationMs);
+            }
+        }
         String ipLine = locationEnabled && !snapshot.ipLabel.isEmpty()
                 ? "IP属地：" + snapshot.ipLabel
                 : null;
@@ -225,6 +230,22 @@ final class PublishInfo {
             text.append('\n');
         }
         return text.length();
+    }
+
+    static String formatDuration(long durationMs) {
+        if (durationMs < 0L) {
+            return "";
+        }
+        long totalSeconds = durationMs / 1000L;
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        if (hours > 0L) {
+            return hours + ":"
+                    + String.format(Locale.ROOT, "%02d:%02d", minutes, seconds);
+        }
+        return minutes + ":"
+                + String.format(Locale.ROOT, "%02d", seconds);
     }
 
     static String formatTime(long epochMs, TimeZone zone) {
