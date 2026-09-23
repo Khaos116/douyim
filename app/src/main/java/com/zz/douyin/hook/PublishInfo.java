@@ -14,12 +14,13 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 /**
- * Shows the current video's publish time (and later location) in a small
+ * Shows the current video's publish time and location in a small
  * overlay so it stays visible in both playing and paused states.
  *
  * <p>The overlay is our own view because Douyin's feed UI does not reliably
- * expose a publish-time TextView to find and rewrite. It never consumes
- * touches and is removed whenever the feature is off or the time is unknown.
+ * expose publish-time/location TextViews to find and rewrite. It never
+ * consumes touches and is removed whenever both switches are off or nothing
+ * is known. IP attribution is always labeled "IP属地", never "地点".
  */
 final class PublishInfo {
     private static WeakReference<TextView> overlay = new WeakReference<>(null);
@@ -30,7 +31,7 @@ final class PublishInfo {
     private PublishInfo() {
     }
 
-    static void update(View decor) {
+    static void update(View decor, boolean timeEnabled, boolean locationEnabled) {
         FeedContentTracker.Snapshot snapshot = null;
         if (decor != null) {
             try {
@@ -39,7 +40,7 @@ final class PublishInfo {
                 snapshot = null;
             }
         }
-        String text = composeText(snapshot);
+        String text = composeText(snapshot, timeEnabled, locationEnabled);
         TextView view = overlay.get();
         View host = overlayDecor.get();
         if (text == null) {
@@ -73,13 +74,50 @@ final class PublishInfo {
         lastText = null;
     }
 
-    static String composeText(FeedContentTracker.Snapshot snapshot) {
-        if (snapshot == null
-                || snapshot.isAdvertisement()
-                || snapshot.createTimeMs <= 0L) {
+    static String composeText(
+            FeedContentTracker.Snapshot snapshot,
+            boolean timeEnabled,
+            boolean locationEnabled
+    ) {
+        if (snapshot == null || snapshot.isAdvertisement()) {
             return null;
         }
-        return "发布于 " + formatTime(snapshot.createTimeMs, TimeZone.getDefault());
+        StringBuilder text = new StringBuilder();
+        if (timeEnabled && snapshot.createTimeMs > 0L) {
+            text.append("发布于 ")
+                    .append(formatTime(snapshot.createTimeMs, TimeZone.getDefault()));
+        }
+        if (locationEnabled) {
+            if (!snapshot.ipLabel.isEmpty()) {
+                breakLine(text);
+                text.append("IP属地：").append(snapshot.ipLabel);
+            }
+            String place = displayPlace(snapshot);
+            if (!place.isEmpty()) {
+                breakLine(text);
+                text.append("地点：").append(place);
+            }
+        }
+        return text.length() == 0 ? null : text.toString();
+    }
+
+    static String displayPlace(FeedContentTracker.Snapshot snapshot) {
+        if (snapshot == null) {
+            return "";
+        }
+        if (!snapshot.poiName.isEmpty()) {
+            return snapshot.poiName;
+        }
+        if (!snapshot.location.isEmpty()) {
+            return snapshot.location;
+        }
+        return snapshot.city;
+    }
+
+    private static void breakLine(StringBuilder text) {
+        if (text.length() > 0) {
+            text.append('\n');
+        }
     }
 
     static String formatTime(long epochMs, TimeZone zone) {
@@ -108,7 +146,8 @@ final class PublishInfo {
         view.setPadding(padding, padding, padding, padding);
         view.setClickable(false);
         view.setFocusable(false);
-        view.setSingleLine(true);
+        view.setSingleLine(false);
+        view.setMaxLines(3);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,

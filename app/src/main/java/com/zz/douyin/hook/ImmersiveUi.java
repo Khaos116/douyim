@@ -56,6 +56,7 @@ final class ImmersiveUi {
     private static volatile boolean autoNextEnabled = true;
     private static volatile boolean exactCountsEnabled = true;
     private static volatile boolean publishTimeEnabled = true;
+    private static volatile boolean publishLocationEnabled = true;
     private static String lastAutoNextAid;
     private static boolean lastAutoNextFired;
     private static SharedPreferences immersivePreferences;
@@ -131,6 +132,7 @@ final class ImmersiveUi {
         autoNextEnabled = com.zz.douyin.FilterPreferences.readAutoNext(preferences);
         exactCountsEnabled = com.zz.douyin.FilterPreferences.readExactCounts(preferences);
         publishTimeEnabled = com.zz.douyin.FilterPreferences.readPublishTime(preferences);
+        publishLocationEnabled = com.zz.douyin.FilterPreferences.readPublishLocation(preferences);
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
         MAIN.post(() -> {
             if (changed) {
@@ -552,8 +554,8 @@ final class ImmersiveUi {
             ExactCounts.restoreAll();
         }
 
-        if (publishTimeEnabled) {
-            PublishInfo.update(decor);
+        if (publishTimeEnabled || publishLocationEnabled) {
+            PublishInfo.update(decor, publishTimeEnabled, publishLocationEnabled);
         } else {
             PublishInfo.remove();
         }
@@ -1492,6 +1494,11 @@ final class ImmersiveUi {
                         + " collect=" + model.collectCount
                         + " share=" + model.shareCount
                         + " play=" + model.playCount);
+                LogBook.i("[PublishInfo] aid=" + model.aid
+                        + " ipLabel=" + model.ipLabel
+                        + " poi=" + model.poiName
+                        + " location=" + model.location
+                        + " city=" + model.city);
             }
             return false;
         }

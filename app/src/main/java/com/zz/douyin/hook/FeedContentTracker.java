@@ -229,6 +229,10 @@ public final class FeedContentTracker {
         long shareCount = statistics.shareCount();
         long playCount = statistics.playCount();
         long createTimeMs = model.createTimeMs();
+        String ipLabel = model.ipLabel();
+        String poiName = model.poiName();
+        String location = model.location();
+        String city = model.city();
         boolean photo =
                 hostImage
                         || hostMultiImage
@@ -294,6 +298,10 @@ public final class FeedContentTracker {
                 shareCount,
                 playCount,
                 createTimeMs,
+                ipLabel,
+                poiName,
+                location,
+                city,
                 reason,
                 playUrls
         );
@@ -320,6 +328,10 @@ public final class FeedContentTracker {
         final long shareCount;
         final long playCount;
         final long createTimeMs;
+        final String ipLabel;
+        final String poiName;
+        final String location;
+        final String city;
         final String filterReason;
         final List<PlayUrl> playUrls;
 
@@ -344,6 +356,10 @@ public final class FeedContentTracker {
                 long shareCount,
                 long playCount,
                 long createTimeMs,
+                String ipLabel,
+                String poiName,
+                String location,
+                String city,
                 String filterReason,
                 List<PlayUrl> playUrls
         ) {
@@ -367,6 +383,10 @@ public final class FeedContentTracker {
             this.shareCount = shareCount;
             this.playCount = playCount;
             this.createTimeMs = createTimeMs;
+            this.ipLabel = ipLabel;
+            this.poiName = poiName;
+            this.location = location;
+            this.city = city;
             this.filterReason = filterReason;
             this.playUrls = playUrls;
         }

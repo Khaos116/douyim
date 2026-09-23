@@ -41,6 +41,7 @@ public final class MainActivity extends Activity
     private Switch autoNext;
     private Switch exactCounts;
     private Switch publishTime;
+    private Switch publishLocation;
     private EditText keywordInput;
     private Button saveKeywords;
     private SharedPreferences preferences;
@@ -171,6 +172,10 @@ public final class MainActivity extends Activity
         publishTime = addSwitch(playbackCard, "一直显示发布时间",
                 "左上角常显当前视频发布时间，精确到分钟",
                 FilterPreferences.KEY_PUBLISH_TIME);
+        addDivider(playbackCard);
+        publishLocation = addSwitch(playbackCard, "一直显示IP属地/地点",
+                "左上角追加当前视频IP属地与POI地点；无数据时不显示、不伪造",
+                FilterPreferences.KEY_PUBLISH_LOCATION);
         LinearLayout.LayoutParams playbackCardParams = matchWrap();
         playbackCardParams.topMargin = dp(10);
         root.addView(playbackCard, playbackCardParams);
@@ -284,6 +289,7 @@ public final class MainActivity extends Activity
         autoNext.setChecked(FilterPreferences.readAutoNext(preferences));
         exactCounts.setChecked(FilterPreferences.readExactCounts(preferences));
         publishTime.setChecked(FilterPreferences.readPublishTime(preferences));
+        publishLocation.setChecked(FilterPreferences.readPublishLocation(preferences));
         keywordInput.setText(values.keywordText);
         keywordInput.setSelection(keywordInput.length());
         serviceStatus.setText(
@@ -373,6 +379,7 @@ public final class MainActivity extends Activity
         autoNext.setEnabled(enabled);
         exactCounts.setEnabled(enabled);
         publishTime.setEnabled(enabled);
+        publishLocation.setEnabled(enabled);
         keywordInput.setEnabled(enabled);
         saveKeywords.setEnabled(enabled);
         saveKeywords.setAlpha(enabled ? 1f : 0.45f);

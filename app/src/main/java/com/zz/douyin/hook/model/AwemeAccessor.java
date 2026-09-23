@@ -145,6 +145,104 @@ public final class AwemeAccessor {
         return statistics;
     }
 
+    public Object author() {
+        Object author = invokeNoArg(type, aweme, "getAuthor");
+        if (author == null) {
+            author = readField(type, aweme, "author");
+        }
+        if (author == null) {
+            author = readSerializedField(aweme, "author");
+        }
+        return author;
+    }
+
+    public Object poi() {
+        Object poi = invokeNoArg(type, aweme, "getPoi");
+        if (poi == null) {
+            poi = readField(type, aweme, "poi");
+        }
+        if (poi == null) {
+            poi = readField(type, aweme, "poiInfo");
+        }
+        if (poi == null) {
+            poi = readSerializedField(aweme, "poi");
+        }
+        if (poi == null) {
+            poi = readSerializedField(aweme, "poi_info");
+        }
+        return poi;
+    }
+
+    public String ipLabel() {
+        String direct = firstNonBlank(
+                textOn(aweme, "getIpLabel", "ipLabel", "ip_label"),
+                textOn(aweme, "getIpLocation", "ipLocation", "ip_location"),
+                textOn(aweme, "getIpAttribution", "ipAttribution", "ip_attribution")
+        );
+        if (!direct.isEmpty()) {
+            return direct;
+        }
+        Object author = author();
+        return firstNonBlank(
+                textOn(author, "getIpLabel", "ipLabel", "ip_label"),
+                textOn(author, "getIpLocation", "ipLocation", "ip_location")
+        );
+    }
+
+    public String poiName() {
+        String direct = textOn(aweme, "getPoiName", "poiName", "poi_name");
+        if (!direct.isEmpty()) {
+            return direct;
+        }
+        Object poi = poi();
+        return firstNonBlank(
+                textOn(poi, "getPoiName", "poiName", "poi_name"),
+                textOn(poi, "getName", "name", "name")
+        );
+    }
+
+    public String location() {
+        return firstNonBlank(
+                textOn(aweme, "getLocation", "location", "location"),
+                textOn(aweme, "getAddress", "address", "address")
+        );
+    }
+
+    public String city() {
+        String direct = firstNonBlank(
+                textOn(aweme, "getCity", "city", "city"),
+                textOn(aweme, "getCityName", "cityName", "city_name")
+        );
+        if (!direct.isEmpty()) {
+            return direct;
+        }
+        Object poi = poi();
+        return firstNonBlank(
+                textOn(poi, "getCity", "city", "city"),
+                textOn(poi, "getCityName", "cityName", "city_name")
+        );
+    }
+
+    private static String textOn(
+            Object target,
+            String method,
+            String field,
+            String serialized
+    ) {
+        if (target == null) {
+            return "";
+        }
+        Class<?> targetType = target.getClass();
+        Object value = invokeNoArg(targetType, target, method);
+        if (value == null) {
+            value = readField(targetType, target, field);
+        }
+        if (value == null) {
+            value = readSerializedField(target, serialized);
+        }
+        return textValue(value);
+    }
+
     public static Object readField(Class<?> type, Object instance, String name) {
         try {
             Field field = type.getField(name);

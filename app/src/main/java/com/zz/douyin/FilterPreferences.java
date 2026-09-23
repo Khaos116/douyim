@@ -23,6 +23,7 @@ public final class FilterPreferences {
     public static final String KEY_AUTO_NEXT = "auto_next";
     public static final String KEY_EXACT_COUNTS = "exact_counts";
     public static final String KEY_PUBLISH_TIME = "publish_time";
+    public static final String KEY_PUBLISH_LOCATION = "publish_location";
 
     public static final boolean DEFAULT_SKIP_ADS = true;
     public static final boolean DEFAULT_SKIP_IMAGES = true;
@@ -32,6 +33,7 @@ public final class FilterPreferences {
     public static final boolean DEFAULT_AUTO_NEXT = true;
     public static final boolean DEFAULT_EXACT_COUNTS = true;
     public static final boolean DEFAULT_PUBLISH_TIME = true;
+    public static final boolean DEFAULT_PUBLISH_LOCATION = true;
 
     private FilterPreferences() {
     }
@@ -93,6 +95,12 @@ public final class FilterPreferences {
         return preferences == null
                 ? DEFAULT_PUBLISH_TIME
                 : preferences.getBoolean(KEY_PUBLISH_TIME, DEFAULT_PUBLISH_TIME);
+    }
+
+    public static boolean readPublishLocation(SharedPreferences preferences) {
+        return preferences == null
+                ? DEFAULT_PUBLISH_LOCATION
+                : preferences.getBoolean(KEY_PUBLISH_LOCATION, DEFAULT_PUBLISH_LOCATION);
     }
 
     public static final class Values {

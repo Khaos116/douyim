@@ -217,6 +217,61 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
+    public void locationFieldsFromDirectMembers() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.ipLabel = "四川";
+        aweme.city = "成都市";
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("四川", snapshot.ipLabel);
+        assertEquals("成都市", snapshot.city);
+        assertEquals("", snapshot.poiName);
+        assertEquals("", snapshot.location);
+    }
+
+    @Test
+    public void ipLabelPrefersGetterOverField() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.ipLabelMethod = "浙江";
+        aweme.ipLabel = "四川";
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("浙江", snapshot.ipLabel);
+    }
+
+    @Test
+    public void ipLabelFallsBackToAuthor() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.author = new FakeAuthor("广东");
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("广东", snapshot.ipLabel);
+    }
+
+    @Test
+    public void poiNameFromNestedObject() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.poi = new FakePoi("春熙路");
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals("春熙路", snapshot.poiName);
+    }
+
+    @Test
+    public void missingLocationYieldsBlank() throws Exception {
+        FeedContentTracker.Snapshot snapshot = snapshot(videoAweme(0));
+
+        assertEquals("", snapshot.ipLabel);
+        assertEquals("", snapshot.poiName);
+        assertEquals("", snapshot.location);
+        assertEquals("", snapshot.city);
+    }
+
+    @Test
     public void keywordMatchesVideoItemTitle() {
         FakeAweme aweme = videoAweme(0);
         aweme.itemTitle = "今天一起玩超级游戏";
@@ -321,6 +376,16 @@ public final class FeedContentTrackerTest {
         public boolean hostMultiImage;
         public Object rawAd;
         public long createTime;
+        public String ipLabel;
+        public String ipLabelMethod;
+        public String location;
+        public String city;
+        public Object author;
+        public Object poi;
+
+        public String getIpLabel() {
+            return ipLabelMethod;
+        }
 
         public boolean isImage() {
             return hostImage;
@@ -332,6 +397,22 @@ public final class FeedContentTrackerTest {
 
         public Object getAwemeRawAd() {
             return rawAd;
+        }
+    }
+
+    public static final class FakeAuthor {
+        public final String ipLocation;
+
+        FakeAuthor(String ipLocation) {
+            this.ipLocation = ipLocation;
+        }
+    }
+
+    public static final class FakePoi {
+        public final String poiName;
+
+        FakePoi(String poiName) {
+            this.poiName = poiName;
         }
     }
 
