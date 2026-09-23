@@ -82,6 +82,24 @@ public final class FeedNavigatorTest {
     }
 
     @Test
+    public void userPausedItemIsKeptRegardlessOfFilterReason() {
+        assertTrue(FeedNavigator.shouldKeepForUserPause("photo article model", true));
+        assertTrue(FeedNavigator.shouldKeepForUserPause("advertisement model", true));
+        assertTrue(FeedNavigator.shouldKeepForUserPause("live model", true));
+    }
+
+    @Test
+    public void playingItemIsNotKeptByPauseGuard() {
+        assertFalse(FeedNavigator.shouldKeepForUserPause("photo article model", false));
+    }
+
+    @Test
+    public void acceptedItemNeedsNoPauseKeep() {
+        assertFalse(FeedNavigator.shouldKeepForUserPause(null, true));
+        assertFalse(FeedNavigator.shouldKeepForUserPause(null, false));
+    }
+
+    @Test
     public void unknownFilterReasonsFallBackToImageBucket() {
         assertEquals(
                 FeedNavigator.Reason.FILTER_IMAGE,

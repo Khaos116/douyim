@@ -73,6 +73,15 @@ final class FeedNavigator {
         return !alreadyFired;
     }
 
+    /**
+     * A user-paused item is never auto-filtered: an explicit pause means the
+     * user wants to stay, so every filter reason is suspended until resume or
+     * a manual swipe (which clears the pause first).
+     */
+    static boolean shouldKeepForUserPause(String filterReason, boolean userPaused) {
+        return filterReason != null && userPaused;
+    }
+
     static boolean moveToNext(View decor, Reason reason) {
         if (!ImmersiveUi.isModuleEnabled()) {
             LogBook.d("[FeedNav] moveToNext ignored: module disabled");

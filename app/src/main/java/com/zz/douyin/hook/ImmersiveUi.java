@@ -99,6 +99,7 @@ final class ImmersiveUi {
     private static WeakReference<View> lastProgressLogged =
             new WeakReference<>(null);
     private static String lastLiveTabKeepAid;
+    private static String lastUserPausedKeepAid;
     private static long lastHandledTouchDownTime;
     private static long contentCheckNotBefore;
     private static long contentCheckUntil;
@@ -1658,6 +1659,15 @@ final class ImmersiveUi {
                             + model.aid);
                 }
                 reason = null;
+            }
+            if (FeedNavigator.shouldKeepForUserPause(
+                    reason, PlaybackState.isUserPaused())) {
+                resetFilterCandidate();
+                if (!model.aid.equals(lastUserPausedKeepAid)) {
+                    lastUserPausedKeepAid = model.aid;
+                    LogBook.i("[Filter] keep: user paused aid=" + model.aid);
+                }
+                return false;
             }
             if (reason != null) {
                 if (!activelyArmed) {
