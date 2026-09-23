@@ -7,7 +7,7 @@
 
 - 本仓库是用户 fork：`origin = https://github.com/Khaos116/douyim.git`，上游是 `1zzzzzlll/douyim`（抖仙人 LSPosed 模块，包名 `com.zz.douyin`）。
 - **任务书（唯一需求来源）**：[`docs/my/抖仙人_功能迁移与LSPatch_Local兼容改造执行方案.txt`](docs/my/抖仙人_功能迁移与LSPatch_Local兼容改造执行方案.txt)，共 48 节，开工前通读。
-- 改造目标（任务书 §目标4）：在保持抖仙人架构的前提下，参考 FreedomPlus / Dou+ 迁移功能——自动下一条、广告/直播/图文/关键词/长视频过滤、无水印下载、MP3、精确点赞/评论/收藏/分享数、发布时间常显、IP 属地/POI 常显、文本颜色可配、UI 常显控制；LSPosed 为第一基线，兼顾 LSPatch Local。
+- 改造目标（任务书 §目标4 + 用户 6 项确认见修改记录“范围增补”）：在保持抖仙人架构的前提下，参考 FreedomPlus / Dou+ 迁移功能——自动下一条、广告/直播/图文/关键词/长视频过滤、无水印下载、复制链接、MP3、精确点赞/评论/收藏/分享数、发布时间常显、IP 属地/POI 常显、文本颜色可配、隐藏发布按钮/顶部 TAB；LSPosed 为第一基线，兼顾 LSPatch Local。不做：图集/LivePhoto/链接解析下载/评论过滤/弹幕/直播录制/倍速/批量下载。
 - **红线**：只动客户端 UI、播放行为、内容过滤、本地媒体保存；绝不碰登录、支付、会员、风控、签名校验、设备认证、安全验证等逻辑。
 
 ## 2. 分支与提交工作流（强制）
@@ -62,6 +62,7 @@
 | 8 | 长视频过滤（参考 FreedomPlus 思路） | `feat: add long video filter` |
 | 9 | 下载增强（先做三方差异分析，只补缺失） | 按能力拆分提交 |
 | 10 | LSPatch Local 实测兼容（先测出真实失败点再改） | `fix: ...` |
+| 11 | 界面元素隐藏：发布按钮开关 + 顶部 TAB 按文本关键词隐藏（Phase 9 后、Phase 10 前执行） | `feat: hide publish button and top tabs` |
 
 - Phase 0 的基线输出（架构图、6 条数据流、Phase 1 最小方案）写进修改记录，不单独建文件。
 - 每个 Phase 的详细验收标准见任务书 §三十～§三十一。
