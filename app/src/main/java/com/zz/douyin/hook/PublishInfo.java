@@ -3,6 +3,7 @@ package com.zz.douyin.hook;
 import android.graphics.Color;
 import android.text.SpannableString;
 import android.text.Spanned;
+import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
 import android.view.View;
@@ -17,21 +18,32 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 /**
- * Shows the current video's publish time and location in a small
- * overlay so it stays visible in both playing and paused states.
+ * Shows the current video's publish time and location in a small single-line
+ * overlay anchored below the video description.
  *
  * <p>The overlay is our own view because Douyin's feed UI does not reliably
  * expose publish-time/location TextViews to find and rewrite. It never
  * consumes touches and is removed whenever both switches are off or nothing
- * is known. IP attribution is always labeled "IP属地", never "地点".
+ * is known. The description anchor is found by matching visible text against
+ * the snapshot; when no match exists the overlay falls back to the top-left
+ * corner instead of guessing.
  */
 final class PublishInfo {
+    private static final int MIN_DESC_MATCH_LENGTH = 8;
+
     private static WeakReference<TextView> overlay = new WeakReference<>(null);
     private static WeakReference<View> overlayDecor = new WeakReference<>(null);
+    private static WeakReference<View> anchor = new WeakReference<>(null);
+    private static final int[] LOCATION = new int[2];
+    private static final int[] DECOR_LOCATION = new int[2];
     private static String lastText;
     private static int lastTimeColor;
     private static int lastLocationColor;
     private static boolean lastCustomColors;
+    private static int lastLeft = -1;
+    private static int lastTop = -1;
+    private static String lastAnchorAid;
+    private static String lastAnchorMissAid;
     private static SimpleDateFormat formatter;
 
     private PublishInfo() {
@@ -69,11 +81,14 @@ final class PublishInfo {
             overlay = new WeakReference<>(view);
             overlayDecor = new WeakReference<>(decor);
             lastText = null;
+            lastLeft = -1;
+            lastTop = -1;
         }
         if (view == null) {
             lastText = null;
             return;
         }
+        reposition(view, decor, snapshot);
         if (!content.text.equals(lastText)
                 || customColors != lastCustomColors
                 || (customColors && (timeColor != lastTimeColor
@@ -92,7 +107,150 @@ final class PublishInfo {
         removeOverlay(overlay.get());
         overlay.clear();
         overlayDecor.clear();
+        anchor.clear();
         lastText = null;
+        lastLeft = -1;
+        lastTop = -1;
+        lastAnchorAid = null;
+    }
+
+    private static void reposition(
+            TextView view,
+            View decor,
+            FeedContentTracker.Snapshot snapshot
+    ) {
+        if (snapshot != null && !snapshot.aid.equals(lastAnchorAid)) {
+            lastAnchorAid = snapshot.aid;
+            anchor.clear();
+        }
+        View cached = anchor.get();
+        if ((cached == null || !cached.isShown())
+                && decor != null && snapshot != null) {
+            cached = findDescriptionAnchor(
+                    decor, snapshot.description, snapshot.title);
+            anchor = new WeakReference<>(cached);
+            logAnchor(cached, snapshot.aid);
+        }
+        applyPosition(view, decor, cached);
+    }
+
+    private static void applyPosition(
+            TextView view,
+            View decor,
+            View anchorView
+    ) {
+        if (decor == null || decor.getResources() == null) {
+            return;
+        }
+        float density = decor.getResources().getDisplayMetrics().density;
+        int left;
+        int top;
+        if (anchorView != null) {
+            decor.getLocationOnScreen(DECOR_LOCATION);
+            anchorView.getLocationOnScreen(LOCATION);
+            left = LOCATION[0] - DECOR_LOCATION[0];
+            top = LOCATION[1] + anchorView.getHeight() - DECOR_LOCATION[1]
+                    + Math.round(2f * density);
+            left = Math.max(0, left);
+            top = Math.max(0, Math.min(
+                    top, decor.getHeight() - Math.round(32f * density)));
+        } else {
+            left = Math.round(12f * density);
+            top = Math.round(96f * density);
+        }
+        if (left == lastLeft && top == lastTop) {
+            return;
+        }
+        lastLeft = left;
+        lastTop = top;
+        if (view.getLayoutParams() instanceof FrameLayout.LayoutParams params) {
+            params.gravity = Gravity.TOP | Gravity.START;
+            params.leftMargin = left;
+            params.topMargin = top;
+            view.setLayoutParams(params);
+        }
+    }
+
+    private static View findDescriptionAnchor(
+            View decor,
+            String desc,
+            String title
+    ) {
+        View[] best = new View[1];
+        int[] bestLength = new int[]{-1};
+        int[] bestTop = new int[]{Integer.MIN_VALUE};
+        collectAnchor(decor, desc, title, best, bestLength, bestTop);
+        return best[0];
+    }
+
+    private static void collectAnchor(
+            View node,
+            String desc,
+            String title,
+            View[] best,
+            int[] bestLength,
+            int[] bestTop
+    ) {
+        if (node instanceof TextView text
+                && node.isShown()
+                && !"douyin_publish_info".equals(node.getTag())) {
+            CharSequence content = text.getText();
+            String shown = content == null ? "" : content.toString();
+            if (isDescriptionMatch(shown, desc, title)) {
+                node.getLocationOnScreen(LOCATION);
+                int length = shown.trim().length();
+                if (length > bestLength[0]
+                        || (length == bestLength[0] && LOCATION[1] > bestTop[0])) {
+                    best[0] = node;
+                    bestLength[0] = length;
+                    bestTop[0] = LOCATION[1];
+                }
+            }
+        }
+        if (node instanceof ViewGroup group) {
+            for (int index = 0, count = group.getChildCount();
+                    index < count;
+                    index++) {
+                collectAnchor(
+                        group.getChildAt(index), desc, title,
+                        best, bestLength, bestTop);
+            }
+        }
+    }
+
+    private static void logAnchor(View anchorView, String aid) {
+        if (anchorView != null) {
+            anchorView.getLocationOnScreen(LOCATION);
+            LogBook.i("[PublishInfo] anchor desc view="
+                    + anchorView.getClass().getName()
+                    + " top=" + LOCATION[1] + " aid=" + aid);
+            return;
+        }
+        if (!aid.equals(lastAnchorMissAid)) {
+            lastAnchorMissAid = aid;
+            LogBook.d("[PublishInfo] no desc anchor; fallback position aid=" + aid);
+        }
+    }
+
+    static boolean isDescriptionMatch(String shown, String desc, String title) {
+        if (shown == null) {
+            return false;
+        }
+        return containsFolded(desc, shown) || containsFolded(title, shown);
+    }
+
+    private static boolean containsFolded(String model, String shown) {
+        if (model == null || shown == null) {
+            return false;
+        }
+        String flatModel = model.replaceAll("\\s+", "");
+        String flatShown = shown.replaceAll("\\s+", "").trim();
+        if (flatShown.length() >= MIN_DESC_MATCH_LENGTH
+                && flatModel.contains(flatShown)) {
+            return true;
+        }
+        return flatModel.length() >= MIN_DESC_MATCH_LENGTH
+                && flatShown.contains(flatModel);
     }
 
     private static CharSequence style(
@@ -141,47 +299,46 @@ final class PublishInfo {
         if (snapshot == null || snapshot.isAdvertisement()) {
             return null;
         }
-        String timeLine = null;
+        String timePart = null;
         if (timeEnabled && snapshot.createTimeMs > 0L) {
-            timeLine = "发布于 "
-                    + formatTime(snapshot.createTimeMs, TimeZone.getDefault());
+            timePart = formatTime(snapshot.createTimeMs, TimeZone.getDefault());
             if (snapshot.durationMs >= 0L) {
-                timeLine += " · " + formatDuration(snapshot.durationMs);
+                timePart += " · " + formatDuration(snapshot.durationMs);
             }
         }
-        String ipLine = locationEnabled && !snapshot.ipLabel.isEmpty()
-                ? "IP属地：" + snapshot.ipLabel
+        String ipPart = locationEnabled && !snapshot.ipLabel.isEmpty()
+                ? snapshot.ipLabel
                 : null;
-        String placeLine = null;
+        String placePart = null;
         if (locationEnabled) {
             String place = displayPlace(snapshot);
             if (!place.isEmpty()) {
-                placeLine = "地点：" + place;
+                placePart = place;
             }
         }
-        if (timeLine == null && ipLine == null && placeLine == null) {
+        if (timePart == null && ipPart == null && placePart == null) {
             return null;
         }
         StringBuilder text = new StringBuilder();
         int timeStart = -1;
         int timeEnd = -1;
         int locationStart = -1;
-        if (timeLine != null) {
+        if (timePart != null) {
             timeStart = 0;
-            text.append(timeLine);
+            text.append(timePart);
             timeEnd = text.length();
         }
-        if (ipLine != null) {
-            locationStart = breakLine(text);
-            text.append(ipLine);
+        if (ipPart != null) {
+            locationStart = separate(text);
+            text.append(ipPart);
         }
-        if (placeLine != null) {
+        if (placePart != null) {
             if (locationStart < 0) {
-                locationStart = breakLine(text);
+                locationStart = separate(text);
             } else {
-                breakLine(text);
+                separate(text);
             }
-            text.append(placeLine);
+            text.append(placePart);
         }
         return new OverlayContent(
                 text.toString(),
@@ -227,9 +384,9 @@ final class PublishInfo {
         return snapshot.city;
     }
 
-    private static int breakLine(StringBuilder text) {
+    private static int separate(StringBuilder text) {
         if (text.length() > 0) {
-            text.append('\n');
+            text.append(' ');
         }
         return text.length();
     }
@@ -268,16 +425,13 @@ final class PublishInfo {
         float density = decor.getResources().getDisplayMetrics().density;
         TextView view = new TextView(decor.getContext());
         view.setTag("douyin_publish_info");
-        view.setTextSize(12f);
+        view.setTextSize(10f);
         view.setTextColor(Color.WHITE);
-        view.setShadowLayer(3f, 0f, 1f, Color.BLACK);
-        view.setBackgroundColor(Color.argb(140, 0, 0, 0));
-        int padding = Math.round(4f * density);
-        view.setPadding(padding, padding, padding, padding);
+        view.setShadowLayer(4f, 0f, 1f, Color.BLACK);
         view.setClickable(false);
         view.setFocusable(false);
-        view.setSingleLine(false);
-        view.setMaxLines(3);
+        view.setSingleLine(true);
+        view.setEllipsize(TextUtils.TruncateAt.END);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,

@@ -49,9 +49,9 @@ public final class PublishInfoTest {
         FeedContentTracker.Snapshot snapshot = snapshot(
                 1758000000000L, -1L, "四川", "春熙路", "", "");
 
-        String expected = "发布于 "
-                + PublishInfo.formatTime(1758000000000L, TimeZone.getDefault())
-                + "\nIP属地：四川\n地点：春熙路";
+        String expected =
+                PublishInfo.formatTime(1758000000000L, TimeZone.getDefault())
+                        + " 四川 春熙路";
 
         assertEquals(expected, PublishInfo.composeText(snapshot, true, true));
     }
@@ -69,9 +69,9 @@ public final class PublishInfoTest {
         FeedContentTracker.Snapshot snapshot = snapshot(
                 1758000000000L, 125_000L, "", "", "", "");
 
-        String expected = "发布于 "
-                + PublishInfo.formatTime(1758000000000L, TimeZone.getDefault())
-                + " · 2:05";
+        String expected =
+                PublishInfo.formatTime(1758000000000L, TimeZone.getDefault())
+                        + " · 2:05";
 
         assertEquals(expected, PublishInfo.composeText(snapshot, true, false));
     }
@@ -88,13 +88,15 @@ public final class PublishInfoTest {
         FeedContentTracker.Snapshot snapshot = snapshot(
                 1758000000000L, -1L, "四川", "春熙路", "", "");
 
-        String locationOnly = PublishInfo.composeText(snapshot, false, true);
-        assertTrue(locationOnly.startsWith("IP属地：四川"));
+        assertEquals(
+                "四川 春熙路",
+                PublishInfo.composeText(snapshot, false, true)
+        );
 
-        String timeOnly = PublishInfo.composeText(snapshot, true, false);
-        assertTrue(timeOnly.startsWith("发布于 "));
-        assertTrue(!timeOnly.contains("IP属地"));
-        assertTrue(!timeOnly.contains("地点"));
+        assertEquals(
+                PublishInfo.formatTime(1758000000000L, TimeZone.getDefault()),
+                PublishInfo.composeText(snapshot, true, false)
+        );
 
         assertNull(PublishInfo.composeText(snapshot, false, false));
     }
@@ -121,14 +123,14 @@ public final class PublishInfoTest {
         PublishInfo.OverlayContent content =
                 PublishInfo.composeOverlay(snapshot, true, true);
 
-        String timeLine = "发布于 "
-                + PublishInfo.formatTime(1758000000000L, TimeZone.getDefault());
+        String timePart =
+                PublishInfo.formatTime(1758000000000L, TimeZone.getDefault());
         assertEquals(0, content.timeStart);
-        assertEquals(timeLine.length(), content.timeEnd);
-        assertEquals(timeLine.length() + 1, content.locationStart);
+        assertEquals(timePart.length(), content.timeEnd);
+        assertEquals(timePart.length() + 1, content.locationStart);
         assertEquals(content.text.length(), content.locationEnd);
         assertEquals(
-                "IP属地：四川\n地点：春熙路",
+                "四川 春熙路",
                 content.text.substring(content.locationStart, content.locationEnd)
         );
     }
@@ -164,6 +166,38 @@ public final class PublishInfoTest {
         assertNull(PublishInfo.composeOverlay(null, true, true));
         assertNull(PublishInfo.composeOverlay(
                 snapshot(-1L, -1L, "", "", "", ""), true, true));
+    }
+
+    @Test
+    public void descriptionMatchAcceptsTruncatedOrSuffixedText() {
+        String desc = "今天在春熙路逛街人超级多特别热闹";
+
+        assertTrue(PublishInfo.isDescriptionMatch("今天在春熙路逛街人超级多", desc, ""));
+        assertTrue(PublishInfo.isDescriptionMatch(desc + "…展开", desc, ""));
+        assertTrue(PublishInfo.isDescriptionMatch(desc, desc, ""));
+    }
+
+    @Test
+    public void descriptionMatchFallsBackToTitle() {
+        assertTrue(PublishInfo.isDescriptionMatch(
+                "超级游戏实况第壹佰期", "", "超级游戏实况第壹佰期精彩集锦"));
+    }
+
+    @Test
+    public void descriptionMatchRejectsShortOrBlankText() {
+        String desc = "今天在春熙路逛街人超级多特别热闹";
+
+        assertTrue(!PublishInfo.isDescriptionMatch("逛街", desc, ""));
+        assertTrue(!PublishInfo.isDescriptionMatch("   ", desc, ""));
+        assertTrue(!PublishInfo.isDescriptionMatch(null, desc, ""));
+        assertTrue(!PublishInfo.isDescriptionMatch("今天在太古里喝咖啡看书", desc, ""));
+        assertTrue(!PublishInfo.isDescriptionMatch(desc, "", ""));
+    }
+
+    @Test
+    public void descriptionMatchIgnoresWhitespace() {
+        assertTrue(PublishInfo.isDescriptionMatch(
+                "今天在春熙路\n逛街人超级多", "今天在春熙路逛街人超级多特别热闹", ""));
     }
 
     @Test
