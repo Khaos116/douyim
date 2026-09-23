@@ -41,6 +41,10 @@ public final class FeedNavigatorTest {
                 FeedNavigator.Reason.FILTER_KEYWORD,
                 FeedNavigator.reasonForFilter("video keyword: test")
         );
+        assertEquals(
+                FeedNavigator.Reason.FILTER_LONG_VIDEO,
+                FeedNavigator.reasonForFilter("long video model")
+        );
     }
 
     @Test
@@ -52,6 +56,10 @@ public final class FeedNavigatorTest {
         assertEquals(
                 FeedNavigator.Reason.FILTER_KEYWORD,
                 FeedNavigator.reasonForFilter("video keyword: test aid=1 type=0")
+        );
+        assertEquals(
+                FeedNavigator.Reason.FILTER_LONG_VIDEO,
+                FeedNavigator.reasonForFilter("long video model aid=1 durationMs=300000")
         );
     }
 

@@ -159,7 +159,9 @@ public final class FeedContentTrackerTest {
     @Test
     public void disabledTypeSettingsKeepEveryCategory() {
         FilterPreferences.Values disabled =
-                new FilterPreferences.Values(false, false, false, false, "");
+                new FilterPreferences.Values(
+                        false, false, false, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS);
 
         FakeAweme ad = videoAweme(0);
         ad.isAd = true;
@@ -178,7 +180,9 @@ public final class FeedContentTrackerTest {
 
         FeedContentTracker.Snapshot snapshot = snapshot(
                 live,
-                new FilterPreferences.Values(false, false, true, false, "")
+                new FilterPreferences.Values(
+                        false, false, true, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
         );
 
         assertTrue(snapshot.live);
@@ -192,7 +196,9 @@ public final class FeedContentTrackerTest {
 
         FeedContentTracker.Snapshot snapshot = snapshot(
                 aweme,
-                new FilterPreferences.Values(false, false, false, true, "")
+                new FilterPreferences.Values(
+                        false, false, false, true, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
         );
 
         assertTrue(snapshot.shouldFilter());
@@ -283,7 +289,9 @@ public final class FeedContentTrackerTest {
                         false,
                         false,
                         false,
-                        "推广\n游戏"
+                        "推广\n游戏",
+                        false,
+                        FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS
                 )
         );
 
@@ -304,7 +312,9 @@ public final class FeedContentTrackerTest {
                         false,
                         false,
                         false,
-                        "GADGET，其他"
+                        "GADGET，其他",
+                        false,
+                        FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS
                 )
         );
 
@@ -326,11 +336,91 @@ public final class FeedContentTrackerTest {
                         false,
                         false,
                         false,
-                        "游戏"
+                        "游戏",
+                        false,
+                        FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS
                 )
         );
 
         assertFalse(snapshot.shouldFilter());
+    }
+
+    @Test
+    public void longVideoOverThresholdIsFiltered() {
+        FakeAweme aweme = videoAweme(0);
+        FakeVideo video = new FakeVideo(List.of("https://example.invalid/v.mp4"));
+        video.duration = 300_000L;
+        aweme.video = video;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                aweme,
+                new FilterPreferences.Values(
+                        false, false, false, false, "",
+                        true, 180_000L)
+        );
+
+        assertTrue(snapshot.shouldFilter());
+        assertEquals("long video model", snapshot.filterReason);
+        assertEquals(300_000L, snapshot.durationMs);
+    }
+
+    @Test
+    public void videoUnderThresholdPasses() {
+        FakeAweme aweme = videoAweme(0);
+        FakeVideo video = new FakeVideo(List.of("https://example.invalid/v.mp4"));
+        video.duration = 60_000L;
+        aweme.video = video;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                aweme,
+                new FilterPreferences.Values(
+                        false, false, false, false, "",
+                        true, 180_000L)
+        );
+
+        assertFalse(snapshot.shouldFilter());
+    }
+
+    @Test
+    public void unknownDurationPassesWhenLongFilterEnabled() {
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                videoAweme(0),
+                new FilterPreferences.Values(
+                        false, false, false, false, "",
+                        true, 180_000L)
+        );
+
+        assertEquals(-1L, snapshot.durationMs);
+        assertFalse(snapshot.shouldFilter());
+    }
+
+    @Test
+    public void longVideoPassesWhenFilterDisabled() {
+        FakeAweme aweme = videoAweme(0);
+        FakeVideo video = new FakeVideo(List.of("https://example.invalid/v.mp4"));
+        video.duration = 300_000L;
+        aweme.video = video;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                aweme,
+                new FilterPreferences.Values(
+                        false, false, false, false, "",
+                        false, 180_000L)
+        );
+
+        assertFalse(snapshot.shouldFilter());
+    }
+
+    @Test
+    public void durationSecondsNormalizeToMs() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        FakeVideo video = new FakeVideo(List.of("https://example.invalid/v.mp4"));
+        video.duration = 372L;
+        aweme.video = video;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals(372_000L, snapshot.durationMs);
     }
 
     private static FakeAweme videoAweme(int awemeType) {
@@ -419,6 +509,7 @@ public final class FeedContentTrackerTest {
     public static final class FakeVideo {
         @SerializedName("play_addr")
         public final FakeUrlModel playAddress;
+        public long duration;
 
         FakeVideo(List<String> urls) {
             playAddress = new FakeUrlModel(urls);

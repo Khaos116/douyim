@@ -23,6 +23,7 @@ final class FeedNavigator {
         FILTER_IMAGE,
         FILTER_KEYWORD,
         FILTER_VIDEO,
+        FILTER_LONG_VIDEO,
     }
 
     private static final long SWIPE_DEBOUNCE_MS = 1_500L;
@@ -49,6 +50,9 @@ final class FeedNavigator {
         }
         if (filterReason.startsWith("live")) {
             return Reason.FILTER_LIVE;
+        }
+        if (filterReason.startsWith("long video")) {
+            return Reason.FILTER_LONG_VIDEO;
         }
         if (filterReason.startsWith("video keyword")) {
             return Reason.FILTER_KEYWORD;

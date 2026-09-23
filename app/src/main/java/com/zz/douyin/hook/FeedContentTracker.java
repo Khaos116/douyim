@@ -229,6 +229,7 @@ public final class FeedContentTracker {
         long shareCount = statistics.shareCount();
         long playCount = statistics.playCount();
         long createTimeMs = model.createTimeMs();
+        long durationMs = model.getDurationMs();
         String ipLabel = model.ipLabel();
         String poiName = model.poiName();
         String location = model.location();
@@ -266,6 +267,10 @@ public final class FeedContentTracker {
                     reason = "non-video model";
                 }
             }
+        } else if (activeSettings.skipLongVideos
+                && durationMs >= 0L
+                && durationMs >= activeSettings.longVideoThresholdMs) {
+            reason = "long video model";
         } else {
             String keyword = activeSettings.matchingVideoKeyword(
                     title,
@@ -298,6 +303,7 @@ public final class FeedContentTracker {
                 shareCount,
                 playCount,
                 createTimeMs,
+                durationMs,
                 ipLabel,
                 poiName,
                 location,
@@ -328,6 +334,7 @@ public final class FeedContentTracker {
         final long shareCount;
         final long playCount;
         final long createTimeMs;
+        final long durationMs;
         final String ipLabel;
         final String poiName;
         final String location;
@@ -356,6 +363,7 @@ public final class FeedContentTracker {
                 long shareCount,
                 long playCount,
                 long createTimeMs,
+                long durationMs,
                 String ipLabel,
                 String poiName,
                 String location,
@@ -383,6 +391,7 @@ public final class FeedContentTracker {
             this.shareCount = shareCount;
             this.playCount = playCount;
             this.createTimeMs = createTimeMs;
+            this.durationMs = durationMs;
             this.ipLabel = ipLabel;
             this.poiName = poiName;
             this.location = location;
@@ -418,6 +427,7 @@ public final class FeedContentTracker {
                     + " slides=" + slides
                     + " titleChars=" + title.length()
                     + " descChars=" + description.length()
+                    + " durationMs=" + durationMs
                     + " playUrls=" + playUrls.size();
         }
     }

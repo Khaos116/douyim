@@ -134,6 +134,21 @@ public final class AwemeAccessor {
         return seconds < 1_000_000_000_000L ? seconds * 1000L : seconds;
     }
 
+    public long getDurationMs() {
+        Object video = video();
+        long duration = longOn(video, "getDuration", "duration", "duration", -1L);
+        if (duration < 0L) {
+            duration = longOn(video, "getDurationMs", "durationMs", "duration_ms", -1L);
+        }
+        if (duration < 0L) {
+            duration = longOn(aweme, "getDuration", "duration", "duration", -1L);
+        }
+        if (duration <= 0L) {
+            return -1L;
+        }
+        return duration < 1000L ? duration * 1000L : duration;
+    }
+
     public Object statistics() {
         Object statistics = invokeNoArg(type, aweme, "getStatistics");
         if (statistics == null) {
@@ -241,6 +256,27 @@ public final class AwemeAccessor {
             value = readSerializedField(target, serialized);
         }
         return textValue(value);
+    }
+
+    private static long longOn(
+            Object target,
+            String method,
+            String field,
+            String serialized,
+            long fallback
+    ) {
+        if (target == null) {
+            return fallback;
+        }
+        Class<?> targetType = target.getClass();
+        Object value = invokeNoArg(targetType, target, method);
+        if (value == null) {
+            value = readField(targetType, target, field);
+        }
+        if (value == null) {
+            value = readSerializedField(target, serialized);
+        }
+        return value == null ? fallback : longValue(value, fallback);
     }
 
     public static Object readField(Class<?> type, Object instance, String name) {

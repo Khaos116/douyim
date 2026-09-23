@@ -87,7 +87,7 @@ public final class PublishInfoTest {
                 0, 0, false, false, false, false,
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
-                1758000000000L, "四川", "春熙路", "", "",
+                1758000000000L, -1L, "四川", "春熙路", "", "",
                 null, Collections.emptyList());
 
         assertNull(PublishInfo.composeText(ad, true, true));
@@ -172,7 +172,7 @@ public final class PublishInfoTest {
                 0, 0, false, false, false, false,
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
-                createTimeMs, ipLabel, poiName, location, city,
+                createTimeMs, -1L, ipLabel, poiName, location, city,
                 null, Collections.emptyList());
     }
 }

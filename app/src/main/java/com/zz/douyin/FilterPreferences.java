@@ -19,6 +19,8 @@ public final class FilterPreferences {
     public static final String KEY_SKIP_LIVES = "skip_lives";
     public static final String KEY_SKIP_VIDEOS = "skip_videos";
     public static final String KEY_VIDEO_KEYWORDS = "video_keywords";
+    public static final String KEY_SKIP_LONG_VIDEOS = "skip_long_videos";
+    public static final String KEY_LONG_VIDEO_THRESHOLD_MS = "long_video_threshold_ms";
     public static final String KEY_SHOW_DANMAKU = "show_danmaku";
     public static final String KEY_AUTO_NEXT = "auto_next";
     public static final String KEY_EXACT_COUNTS = "exact_counts";
@@ -33,6 +35,8 @@ public final class FilterPreferences {
     public static final boolean DEFAULT_SKIP_IMAGES = true;
     public static final boolean DEFAULT_SKIP_LIVES = true;
     public static final boolean DEFAULT_SKIP_VIDEOS = false;
+    public static final boolean DEFAULT_SKIP_LONG_VIDEOS = false;
+    public static final long DEFAULT_LONG_VIDEO_THRESHOLD_MS = 180_000L;
     public static final boolean DEFAULT_SHOW_DANMAKU = false;
     public static final boolean DEFAULT_AUTO_NEXT = true;
     public static final boolean DEFAULT_EXACT_COUNTS = true;
@@ -64,7 +68,9 @@ public final class FilterPreferences {
                 DEFAULT_SKIP_IMAGES,
                 DEFAULT_SKIP_LIVES,
                 DEFAULT_SKIP_VIDEOS,
-                ""
+                "",
+                DEFAULT_SKIP_LONG_VIDEOS,
+                DEFAULT_LONG_VIDEO_THRESHOLD_MS
         );
     }
 
@@ -77,7 +83,10 @@ public final class FilterPreferences {
                 preferences.getBoolean(KEY_SKIP_IMAGES, DEFAULT_SKIP_IMAGES),
                 preferences.getBoolean(KEY_SKIP_LIVES, DEFAULT_SKIP_LIVES),
                 preferences.getBoolean(KEY_SKIP_VIDEOS, DEFAULT_SKIP_VIDEOS),
-                preferences.getString(KEY_VIDEO_KEYWORDS, "")
+                preferences.getString(KEY_VIDEO_KEYWORDS, ""),
+                preferences.getBoolean(KEY_SKIP_LONG_VIDEOS, DEFAULT_SKIP_LONG_VIDEOS),
+                preferences.getLong(
+                        KEY_LONG_VIDEO_THRESHOLD_MS, DEFAULT_LONG_VIDEO_THRESHOLD_MS)
         );
     }
 
@@ -140,6 +149,8 @@ public final class FilterPreferences {
         public final boolean skipLives;
         public final boolean skipVideos;
         public final String keywordText;
+        public final boolean skipLongVideos;
+        public final long longVideoThresholdMs;
         private final List<String> keywords;
 
         public Values(
@@ -147,13 +158,17 @@ public final class FilterPreferences {
                 boolean skipImages,
                 boolean skipLives,
                 boolean skipVideos,
-                String keywordText
+                String keywordText,
+                boolean skipLongVideos,
+                long longVideoThresholdMs
         ) {
             this.skipAds = skipAds;
             this.skipImages = skipImages;
             this.skipLives = skipLives;
             this.skipVideos = skipVideos;
             this.keywordText = keywordText == null ? "" : keywordText;
+            this.skipLongVideos = skipLongVideos;
+            this.longVideoThresholdMs = longVideoThresholdMs;
             this.keywords = parseKeywords(this.keywordText);
         }
 

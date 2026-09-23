@@ -37,6 +37,9 @@ public final class MainActivity extends Activity
     private Switch skipImages;
     private Switch skipLives;
     private Switch skipVideos;
+    private Switch skipLongVideos;
+    private EditText longThresholdInput;
+    private Button saveLongThreshold;
     private Switch showDanmaku;
     private Switch autoNext;
     private Switch exactCounts;
@@ -141,6 +144,25 @@ public final class MainActivity extends Activity
                 "跳过全部普通视频；关闭时仍应用关键词过滤",
                 FilterPreferences.KEY_SKIP_VIDEOS
         );
+        addDivider(typeCard);
+        skipLongVideos = addSwitch(
+                typeCard,
+                "长视频",
+                "跳过时长超过下方阈值的普通视频；取不到时长时放行",
+                FilterPreferences.KEY_SKIP_LONG_VIDEOS
+        );
+        longThresholdInput = addLabeledField(typeCard, "长视频阈值（秒）");
+        saveLongThreshold = new Button(this);
+        saveLongThreshold.setText("保存阈值");
+        saveLongThreshold.setTextColor(Color.WHITE);
+        saveLongThreshold.setTextSize(15);
+        saveLongThreshold.setAllCaps(false);
+        saveLongThreshold.setBackground(rounded(PRIMARY, 12));
+        saveLongThreshold.setOnClickListener(view -> saveLongThresholdSettings());
+        LinearLayout.LayoutParams saveLongThresholdParams = matchWrap();
+        saveLongThresholdParams.topMargin = dp(14);
+        saveLongThresholdParams.height = dp(48);
+        typeCard.addView(saveLongThreshold, saveLongThresholdParams);
         LinearLayout.LayoutParams typeCardParams = matchWrap();
         typeCardParams.topMargin = dp(10);
         root.addView(typeCard, typeCardParams);
@@ -202,9 +224,9 @@ public final class MainActivity extends Activity
         );
         colorHint.setLineSpacing(0, 1.25f);
         colorCard.addView(colorHint, matchWrap());
-        countColorInput = addColorField(colorCard, "精确数字颜色");
-        timeColorInput = addColorField(colorCard, "发布时间颜色");
-        locationColorInput = addColorField(colorCard, "IP属地/地点颜色");
+        countColorInput = addLabeledField(colorCard, "精确数字颜色");
+        timeColorInput = addLabeledField(colorCard, "发布时间颜色");
+        locationColorInput = addLabeledField(colorCard, "IP属地/地点颜色");
 
         saveColors = new Button(this);
         saveColors.setText("保存颜色");
@@ -327,6 +349,9 @@ public final class MainActivity extends Activity
         skipImages.setChecked(values.skipImages);
         skipLives.setChecked(values.skipLives);
         skipVideos.setChecked(values.skipVideos);
+        skipLongVideos.setChecked(values.skipLongVideos);
+        longThresholdInput.setText(
+                String.valueOf(values.longVideoThresholdMs / 1000L));
         showDanmaku.setChecked(FilterPreferences.readShowDanmaku(preferences));
         autoNext.setChecked(FilterPreferences.readAutoNext(preferences));
         exactCounts.setChecked(FilterPreferences.readExactCounts(preferences));
@@ -401,6 +426,32 @@ public final class MainActivity extends Activity
         }
     }
 
+    private void saveLongThresholdSettings() {
+        SharedPreferences current = preferences;
+        if (current == null) {
+            Toast.makeText(this, "未连接 LSPosed 服务", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        long seconds;
+        try {
+            seconds = Long.parseLong(longThresholdInput.getText().toString().trim());
+        } catch (NumberFormatException failed) {
+            seconds = -1L;
+        }
+        if (seconds < 5L || seconds > 7200L) {
+            Toast.makeText(this, "阈值无效，请输入 5~7200 秒", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        SharedPreferences.Editor editor = current.edit();
+        if (editor == null) {
+            Toast.makeText(this, "设置保存失败", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        editor.putLong(
+                FilterPreferences.KEY_LONG_VIDEO_THRESHOLD_MS, seconds * 1000L).apply();
+        Toast.makeText(this, "阈值已保存", Toast.LENGTH_SHORT).show();
+    }
+
     private void saveKeywordSettings() {
         SharedPreferences current = preferences;
         if (current == null) {
@@ -427,6 +478,10 @@ public final class MainActivity extends Activity
         skipImages.setEnabled(enabled);
         skipLives.setEnabled(enabled);
         skipVideos.setEnabled(enabled);
+        skipLongVideos.setEnabled(enabled);
+        longThresholdInput.setEnabled(enabled);
+        saveLongThreshold.setEnabled(enabled);
+        saveLongThreshold.setAlpha(enabled ? 1f : 0.45f);
         showDanmaku.setEnabled(enabled);
         autoNext.setEnabled(enabled);
         exactCounts.setEnabled(enabled);
@@ -443,7 +498,7 @@ public final class MainActivity extends Activity
         saveKeywords.setAlpha(enabled ? 1f : 0.45f);
     }
 
-    private EditText addColorField(LinearLayout parent, String label) {
+    private EditText addLabeledField(LinearLayout parent, String label) {
         TextView labelView = text(label, 14, TEXT_PRIMARY);
         LinearLayout.LayoutParams labelParams = matchWrap();
         labelParams.topMargin = dp(14);
