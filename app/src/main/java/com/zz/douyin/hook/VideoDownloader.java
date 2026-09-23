@@ -4,6 +4,8 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -34,7 +36,7 @@ final class VideoDownloader {
     private static AlertDialog chooser;
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     private static final int READ_TIMEOUT_MS = 30_000;
-    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static Handler mainHandler;
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "DouyinNoWatermarkDownload");
         thread.setDaemon(true);
@@ -44,6 +46,14 @@ final class VideoDownloader {
             Collections.synchronizedSet(new HashSet<>());
 
     private VideoDownloader() {
+    }
+
+    private static Handler main() {
+        // Lazily created so JVM unit tests can load this class without Android.
+        if (mainHandler == null) {
+            mainHandler = new Handler(Looper.getMainLooper());
+        }
+        return mainHandler;
     }
 
     static void chooseDownload(Activity activity, FeedContentTracker.Snapshot snapshot) {
@@ -62,6 +72,32 @@ final class VideoDownloader {
                 .create();
         chooser.setOnDismissListener(dialog -> { if (chooser == dialog) chooser = null; });
         chooser.show();
+    }
+
+    static void copyLink(Activity activity, FeedContentTracker.Snapshot snapshot) {
+        if (!ImmersiveUi.isModuleEnabled() || activity == null
+                || activity.isFinishing() || activity.isDestroyed()) return;
+        String url = resolveCopyLink(snapshot);
+        if (url == null) {
+            showToast(activity, "当前视频地址暂不可用");
+            return;
+        }
+        Object service = activity.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (!(service instanceof ClipboardManager clipboard)) {
+            showToast(activity, "复制失败：系统剪贴板不可用");
+            return;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText("douyin-link", url));
+        showToast(activity, "链接已复制");
+        LogBook.i("[Download] link copied aid=" + snapshot.aid
+                + " chars=" + url.length());
+    }
+
+    static String resolveCopyLink(FeedContentTracker.Snapshot snapshot) {
+        if (snapshot == null || snapshot.playUrls.isEmpty()) {
+            return null;
+        }
+        return snapshot.playUrls.get(0).url;
     }
 
     static void dismissChooser() {
@@ -117,7 +153,7 @@ final class VideoDownloader {
             }
 
             DownloadResult finalResult = result;
-            MAIN.post(() -> {
+            main().post(() -> {
                 if (finalResult.completed) {
                     showToast(context,
                             "下载完成：Download/" + finalResult.fileName);
@@ -158,7 +194,7 @@ final class VideoDownloader {
                     if (bytes == 0 || (expected > 0 && bytes != expected)) {
                         throw new IOException("视频源下载不完整");
                     }
-                    MAIN.post(() -> showToast(context, "正在提取音频并转换为 MP3…"));
+                    main().post(() -> showToast(context, "正在提取音频并转换为 MP3…"));
                     AudioTranscoder.toMp3(source, mp3);
                     ensureEnabled();
                     publishAudio(context, mp3, fileName);

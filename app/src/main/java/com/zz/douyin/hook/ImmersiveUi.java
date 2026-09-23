@@ -58,6 +58,7 @@ final class ImmersiveUi {
     private static volatile boolean publishTimeEnabled = true;
     private static volatile boolean publishLocationEnabled = true;
     private static volatile boolean customColorsEnabled;
+    private static volatile boolean copyLinkEnabled = true;
     private static volatile int countTextColor = 0xFFFFFFFF;
     private static volatile int publishTimeColor = 0xFFFFFFFF;
     private static volatile int locationTextColor = 0xFFFFFFFF;
@@ -87,6 +88,8 @@ final class ImmersiveUi {
     private static Object touchDownEngine;
     private static int touchDownEngineState;
     private static WeakReference<TextView> downloadButton =
+            new WeakReference<>(null);
+    private static WeakReference<TextView> copyLinkButton =
             new WeakReference<>(null);
     private static long lastHandledTouchDownTime;
     private static long contentCheckNotBefore;
@@ -141,6 +144,7 @@ final class ImmersiveUi {
         countTextColor = com.zz.douyin.FilterPreferences.readCountTextColor(preferences);
         publishTimeColor = com.zz.douyin.FilterPreferences.readPublishTimeColor(preferences);
         locationTextColor = com.zz.douyin.FilterPreferences.readLocationTextColor(preferences);
+        copyLinkEnabled = com.zz.douyin.FilterPreferences.readCopyLink(preferences);
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
         MAIN.post(() -> {
             if (changed) {
@@ -153,6 +157,7 @@ final class ImmersiveUi {
             }
             if (!moduleEnabled) {
                 removeDownloadButton();
+                removeCopyLinkButton();
                 VideoDownloader.dismissChooser();
                 Activity activity = activeActivity();
                 restoreAll(activity, activeDecor(activity));
@@ -187,6 +192,7 @@ final class ImmersiveUi {
             Activity current = active.get();
             if (current == activity) {
                 removeDownloadButton();
+                removeCopyLinkButton();
                 VideoDownloader.dismissChooser();
                 restoreAll(current);
                 active.clear();
@@ -339,6 +345,7 @@ final class ImmersiveUi {
             }
             if (PlaybackState.confirmUserPlaying(resumeIntentEngine)) {
                 removeDownloadButton();
+                removeCopyLinkButton();
                 scheduleScan(0L);
                 return;
             }
@@ -386,6 +393,11 @@ final class ImmersiveUi {
             if (confirmedPause) {
                 restoreAll(activity, decor);
                 showDownloadButton(activity, decor);
+                if (copyLinkEnabled) {
+                    showCopyLinkButton(activity, decor);
+                } else {
+                    removeCopyLinkButton();
+                }
                 return;
             }
             if (attemptsLeft > 1) {
@@ -445,6 +457,7 @@ final class ImmersiveUi {
             }
             if (playing) {
                 removeDownloadButton();
+                removeCopyLinkButton();
                 scheduleScan(0L);
             } else {
                 long token = PlaybackState.generation();
@@ -527,6 +540,7 @@ final class ImmersiveUi {
         View decor = activeDecor(activity);
         if (!moduleEnabled) {
             removeDownloadButton();
+            removeCopyLinkButton();
             restoreAll(activity, decor);
             scheduleScan(500L);
             return;
@@ -584,11 +598,17 @@ final class ImmersiveUi {
         if (!keepUiHidden) {
             restoreAll(activity, decor);
             showDownloadButton(activity, decor);
+            if (copyLinkEnabled) {
+                showCopyLinkButton(activity, decor);
+            } else {
+                removeCopyLinkButton();
+            }
             scheduleScan(SCAN_INTERVAL_MS);
             return;
         }
 
         removeDownloadButton();
+        removeCopyLinkButton();
         List<View> videos = findVisibleVideoViews(
                 decor,
                 realVideos.visibleVideos
@@ -760,6 +780,91 @@ final class ImmersiveUi {
             }
         }
         downloadButton.clear();
+    }
+
+    private static void showCopyLinkButton(Activity activity, View decor) {
+        if (!moduleEnabled || activity == null
+                || decor == null
+                || !PlaybackState.isUserPaused()
+                || !(decor instanceof FrameLayout container)) {
+            removeCopyLinkButton();
+            return;
+        }
+
+        TextView current = copyLinkButton.get();
+        if (current != null && current.getParent() == container) {
+            current.setVisibility(View.VISIBLE);
+            current.bringToFront();
+            return;
+        }
+        removeCopyLinkButton();
+
+        int size = dp(decor, 52);
+        int verticalGap = dp(decor, 10);
+        int rightMargin = dp(decor, 4);
+        TextView button = new TextView(activity);
+        button.setText("复制\n链接");
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
+        button.setGravity(Gravity.CENTER);
+        button.setIncludeFontPadding(false);
+        button.setContentDescription("复制视频链接");
+        button.setClickable(true);
+        button.setFocusable(true);
+        button.setElevation(dp(decor, 6));
+
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.OVAL);
+        background.setColor(0x73000000);
+        background.setStroke(dp(decor, 1), 0x66FFFFFF);
+        button.setBackground(background);
+        button.setOnClickListener(ignored -> {
+            if (!moduleEnabled || !PlaybackState.isUserPaused()) {
+                removeCopyLinkButton();
+                return;
+            }
+            Activity currentActivity = activeActivity();
+            View currentDecor = activeDecor(currentActivity);
+            FeedContentTracker.Snapshot snapshot =
+                    FeedContentTracker.current(currentDecor);
+            VideoDownloader.copyLink(currentActivity, snapshot);
+        });
+
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                size,
+                size,
+                Gravity.TOP | Gravity.END
+        );
+        params.topMargin = resolveCopyLinkButtonTop(decor, size, verticalGap);
+        params.rightMargin = rightMargin;
+        container.addView(button, params);
+        button.bringToFront();
+        copyLinkButton = new WeakReference<>(button);
+        LogBook.i(
+                "pause copy-link button shown: top=" + params.topMargin);
+    }
+
+    private static void removeCopyLinkButton() {
+        TextView button = copyLinkButton.get();
+        if (button != null) {
+            HIDDEN.remove(button);
+            button.setOnClickListener(null);
+            if (button.getParent() instanceof ViewGroup parent) {
+                parent.removeView(button);
+            }
+        }
+        copyLinkButton.clear();
+    }
+
+    private static int resolveCopyLinkButtonTop(View decor, int size, int gap) {
+        int downloadTop = resolveDownloadButtonTop(decor, size, gap);
+        int minimum = Math.round(decor.getHeight() * 0.20f);
+        int maximum = Math.max(minimum, Math.round(decor.getHeight() * 0.60f));
+        int below = downloadTop + size + gap;
+        if (below <= maximum) {
+            return below;
+        }
+        return Math.max(minimum, downloadTop - size - gap);
     }
 
     private static int resolveDownloadButtonTop(View decor, int size, int gap) {

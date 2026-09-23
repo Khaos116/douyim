@@ -46,6 +46,7 @@ public final class MainActivity extends Activity
     private Switch publishTime;
     private Switch publishLocation;
     private Switch customColors;
+    private Switch copyLink;
     private EditText countColorInput;
     private EditText timeColorInput;
     private EditText locationColorInput;
@@ -207,6 +208,10 @@ public final class MainActivity extends Activity
         customColors = addSwitch(playbackCard, "自定义文本颜色",
                 "用下方颜色覆盖精确数字/发布时间/IP属地地点；关闭后恢复抖音原样式",
                 FilterPreferences.KEY_CUSTOM_TEXT_COLORS);
+        addDivider(playbackCard);
+        copyLink = addSwitch(playbackCard, "复制链接按钮",
+                "暂停时在下载按钮旁显示，一键复制当前视频无水印直链",
+                FilterPreferences.KEY_COPY_LINK);
         LinearLayout.LayoutParams playbackCardParams = matchWrap();
         playbackCardParams.topMargin = dp(10);
         root.addView(playbackCard, playbackCardParams);
@@ -358,6 +363,7 @@ public final class MainActivity extends Activity
         publishTime.setChecked(FilterPreferences.readPublishTime(preferences));
         publishLocation.setChecked(FilterPreferences.readPublishLocation(preferences));
         customColors.setChecked(FilterPreferences.readCustomTextColors(preferences));
+        copyLink.setChecked(FilterPreferences.readCopyLink(preferences));
         countColorInput.setText(
                 com.zz.douyin.hook.FeedUiStyle.toHex(
                         FilterPreferences.readCountTextColor(preferences)));
@@ -488,6 +494,7 @@ public final class MainActivity extends Activity
         publishTime.setEnabled(enabled);
         publishLocation.setEnabled(enabled);
         customColors.setEnabled(enabled);
+        copyLink.setEnabled(enabled);
         countColorInput.setEnabled(enabled);
         timeColorInput.setEnabled(enabled);
         locationColorInput.setEnabled(enabled);

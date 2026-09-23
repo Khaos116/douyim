@@ -30,6 +30,7 @@ public final class FilterPreferences {
     public static final String KEY_COUNT_TEXT_COLOR = "count_text_color";
     public static final String KEY_PUBLISH_TIME_COLOR = "publish_time_color";
     public static final String KEY_LOCATION_TEXT_COLOR = "location_text_color";
+    public static final String KEY_COPY_LINK = "copy_link";
 
     public static final boolean DEFAULT_SKIP_ADS = true;
     public static final boolean DEFAULT_SKIP_IMAGES = true;
@@ -46,6 +47,7 @@ public final class FilterPreferences {
     public static final int DEFAULT_COUNT_TEXT_COLOR = 0xFFFFFFFF;
     public static final int DEFAULT_PUBLISH_TIME_COLOR = 0xFFFFFFFF;
     public static final int DEFAULT_LOCATION_TEXT_COLOR = 0xFFFFFFFF;
+    public static final boolean DEFAULT_COPY_LINK = true;
 
     private FilterPreferences() {
     }
@@ -141,6 +143,12 @@ public final class FilterPreferences {
         return preferences == null
                 ? DEFAULT_LOCATION_TEXT_COLOR
                 : preferences.getInt(KEY_LOCATION_TEXT_COLOR, DEFAULT_LOCATION_TEXT_COLOR);
+    }
+
+    public static boolean readCopyLink(SharedPreferences preferences) {
+        return preferences == null
+                ? DEFAULT_COPY_LINK
+                : preferences.getBoolean(KEY_COPY_LINK, DEFAULT_COPY_LINK);
     }
 
     public static final class Values {
