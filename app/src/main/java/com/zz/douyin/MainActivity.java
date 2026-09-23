@@ -106,9 +106,22 @@ public final class MainActivity extends Activity
         root.setPadding(dp(20), dp(32), dp(20), dp(32));
         scroll.addView(root, matchWrap());
 
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(titleRow, matchWrap());
         TextView title = text("抖仙人", 28, TEXT_PRIMARY);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        root.addView(title, matchWrap());
+        titleRow.addView(title, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView versionView = text(
+                ModuleVersion.versionTag(
+                        BuildConfig.VERSION_NAME,
+                        BuildConfig.VERSION_CODE,
+                        BuildConfig.BUILD_TIME),
+                12,
+                TEXT_SECONDARY);
+        titleRow.addView(versionView);
 
         TextView subtitle = text("播放与内容设置", 15, PRIMARY);
         LinearLayout.LayoutParams subtitleParams = matchWrap();

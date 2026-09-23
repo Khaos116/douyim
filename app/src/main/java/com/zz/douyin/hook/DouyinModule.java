@@ -12,6 +12,9 @@ import java.util.WeakHashMap;
 
 import io.github.libxposed.api.XposedModule;
 
+import com.zz.douyin.BuildConfig;
+import com.zz.douyin.ModuleVersion;
+
 public final class DouyinModule extends XposedModule {
     static final String TAG = "DouyinImmersive";
     static final String TARGET_PACKAGE = "com.ss.android.ugc.aweme";
@@ -22,7 +25,8 @@ public final class DouyinModule extends XposedModule {
     public void onModuleLoaded(ModuleLoadedParam param) {
         LogBook.i("loaded in " + param.getProcessName()
                 + ", framework=" + getFrameworkName()
-                + ", api=" + getApiVersion());
+                + ", api=" + getApiVersion()
+                + ", module=" + moduleTag());
     }
 
     @Override
@@ -78,7 +82,15 @@ public final class DouyinModule extends XposedModule {
                 "player tracker",
                 () -> PlayerHooks.install(this, param.getClassLoader())
         );
-        LogBook.i("hook installation finished for " + param.getPackageName());
+        LogBook.i("hook installation finished for " + param.getPackageName()
+                + ", module=" + moduleTag());
+    }
+
+    private static String moduleTag() {
+        return ModuleVersion.versionTag(
+                BuildConfig.VERSION_NAME,
+                BuildConfig.VERSION_CODE,
+                BuildConfig.BUILD_TIME);
     }
 
     private void installSubsystem(String name, HookInstaller installer) {

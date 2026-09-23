@@ -13,6 +13,12 @@ plugins {
 // 应用版本集中定义：defaultConfig 与 APK 文件名共用，改一处即可
 val appVersionName = "1.5.1"
 
+// 编译时间戳（北京时间）：APK 归档文件名与 BuildConfig 共用，
+// 界面/日志/APK 文件名三处时间戳完全一致，方便对版本。
+val buildTimestamp = SimpleDateFormat("yyyyMMdd_HHmmss").apply {
+    timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+}.format(Date())
+
 layout.buildDirectory.set(
     File(System.getProperty("java.io.tmpdir"), "douyin-immersive-gradle/app")
 )
@@ -40,6 +46,11 @@ android {
         targetSdk = 35
         versionCode = 17
         versionName = appVersionName
+        buildConfigField("String", "BUILD_TIME", "\"$buildTimestamp\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     if (hasKeystoreConfig) {
@@ -119,12 +130,9 @@ afterEvaluate {
         val outputDir = layout.buildDirectory.dir("outputs/apk/release")
         val archiveDir = rootProject.layout.projectDirectory.dir("APK/Release").asFile.toPath()
         task.doLast {
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss").apply {
-            timeZone = TimeZone.getTimeZone("Asia/Shanghai")
-        }.format(Date())
         Files.createDirectories(archiveDir)
         outputDir.get().asFile.listFiles { file: File -> file.name.endsWith(".apk") }?.forEach { apk ->
-            val archivedApk = archiveDir.resolve("${apk.name.removeSuffix(".apk")}_${timestamp}.apk")
+            val archivedApk = archiveDir.resolve("${apk.name.removeSuffix(".apk")}_${buildTimestamp}.apk")
             Files.copy(apk.toPath(), archivedApk, StandardCopyOption.REPLACE_EXISTING)
             logger.lifecycle("Release APK 已归档: $archivedApk")
             }
