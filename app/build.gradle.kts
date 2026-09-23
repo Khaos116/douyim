@@ -59,6 +59,12 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // 测试版与正式版同签名（用户要求），避免两边切换安装时签名冲突
+            signingConfig = if (hasKeystoreConfig) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         release {
             isMinifyEnabled = true
