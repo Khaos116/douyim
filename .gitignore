@@ -7,3 +7,7 @@
 # The pulled target APK is only an analysis input and must not be committed.
 /target-apk/
 /.codex-backups/
+
+# 本地 Release 归档目录；对外发布件仍走 dist/（人工验证后拷贝）
+APK/
+# 注意：本仓库签名密钥公开，xqe.jks 与 keystore.properties 直接进 Git
