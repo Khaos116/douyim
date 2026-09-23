@@ -1,6 +1,9 @@
 package com.zz.douyin.hook;
 
 import android.graphics.Color;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,12 +29,22 @@ final class PublishInfo {
     private static WeakReference<TextView> overlay = new WeakReference<>(null);
     private static WeakReference<View> overlayDecor = new WeakReference<>(null);
     private static String lastText;
+    private static int lastTimeColor;
+    private static int lastLocationColor;
+    private static boolean lastCustomColors;
     private static SimpleDateFormat formatter;
 
     private PublishInfo() {
     }
 
-    static void update(View decor, boolean timeEnabled, boolean locationEnabled) {
+    static void update(
+            View decor,
+            boolean timeEnabled,
+            boolean locationEnabled,
+            boolean customColors,
+            int timeColor,
+            int locationColor
+    ) {
         FeedContentTracker.Snapshot snapshot = null;
         if (decor != null) {
             try {
@@ -40,10 +53,10 @@ final class PublishInfo {
                 snapshot = null;
             }
         }
-        String text = composeText(snapshot, timeEnabled, locationEnabled);
+        OverlayContent content = composeOverlay(snapshot, timeEnabled, locationEnabled);
         TextView view = overlay.get();
         View host = overlayDecor.get();
-        if (text == null) {
+        if (content == null) {
             removeOverlay(view);
             lastText = null;
             return;
@@ -59,10 +72,16 @@ final class PublishInfo {
             lastText = null;
             return;
         }
-        if (!text.equals(lastText)) {
-            view.setText(text);
-            lastText = text;
-            LogBook.d("[PublishInfo] " + text + " aid="
+        if (!content.text.equals(lastText)
+                || customColors != lastCustomColors
+                || (customColors && (timeColor != lastTimeColor
+                || locationColor != lastLocationColor))) {
+            view.setText(style(content, customColors, timeColor, locationColor));
+            lastText = content.text;
+            lastCustomColors = customColors;
+            lastTimeColor = timeColor;
+            lastLocationColor = locationColor;
+            LogBook.d("[PublishInfo] " + content.text + " aid="
                     + (snapshot == null ? "unknown" : snapshot.aid));
         }
     }
@@ -74,7 +93,45 @@ final class PublishInfo {
         lastText = null;
     }
 
+    private static CharSequence style(
+            OverlayContent content,
+            boolean customColors,
+            int timeColor,
+            int locationColor
+    ) {
+        if (!customColors) {
+            return content.text;
+        }
+        SpannableString styled = new SpannableString(content.text);
+        if (content.timeStart >= 0) {
+            styled.setSpan(
+                    new ForegroundColorSpan(timeColor),
+                    content.timeStart,
+                    content.timeEnd,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
+        }
+        if (content.locationStart >= 0) {
+            styled.setSpan(
+                    new ForegroundColorSpan(locationColor),
+                    content.locationStart,
+                    content.locationEnd,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
+        }
+        return styled;
+    }
+
     static String composeText(
+            FeedContentTracker.Snapshot snapshot,
+            boolean timeEnabled,
+            boolean locationEnabled
+    ) {
+        OverlayContent content = composeOverlay(snapshot, timeEnabled, locationEnabled);
+        return content == null ? null : content.text;
+    }
+
+    static OverlayContent composeOverlay(
             FeedContentTracker.Snapshot snapshot,
             boolean timeEnabled,
             boolean locationEnabled
@@ -82,23 +139,72 @@ final class PublishInfo {
         if (snapshot == null || snapshot.isAdvertisement()) {
             return null;
         }
-        StringBuilder text = new StringBuilder();
-        if (timeEnabled && snapshot.createTimeMs > 0L) {
-            text.append("发布于 ")
-                    .append(formatTime(snapshot.createTimeMs, TimeZone.getDefault()));
-        }
+        String timeLine = timeEnabled && snapshot.createTimeMs > 0L
+                ? "发布于 " + formatTime(snapshot.createTimeMs, TimeZone.getDefault())
+                : null;
+        String ipLine = locationEnabled && !snapshot.ipLabel.isEmpty()
+                ? "IP属地：" + snapshot.ipLabel
+                : null;
+        String placeLine = null;
         if (locationEnabled) {
-            if (!snapshot.ipLabel.isEmpty()) {
-                breakLine(text);
-                text.append("IP属地：").append(snapshot.ipLabel);
-            }
             String place = displayPlace(snapshot);
             if (!place.isEmpty()) {
-                breakLine(text);
-                text.append("地点：").append(place);
+                placeLine = "地点：" + place;
             }
         }
-        return text.length() == 0 ? null : text.toString();
+        if (timeLine == null && ipLine == null && placeLine == null) {
+            return null;
+        }
+        StringBuilder text = new StringBuilder();
+        int timeStart = -1;
+        int timeEnd = -1;
+        int locationStart = -1;
+        if (timeLine != null) {
+            timeStart = 0;
+            text.append(timeLine);
+            timeEnd = text.length();
+        }
+        if (ipLine != null) {
+            locationStart = breakLine(text);
+            text.append(ipLine);
+        }
+        if (placeLine != null) {
+            if (locationStart < 0) {
+                locationStart = breakLine(text);
+            } else {
+                breakLine(text);
+            }
+            text.append(placeLine);
+        }
+        return new OverlayContent(
+                text.toString(),
+                timeStart,
+                timeEnd,
+                locationStart,
+                locationStart < 0 ? -1 : text.length()
+        );
+    }
+
+    static final class OverlayContent {
+        final String text;
+        final int timeStart;
+        final int timeEnd;
+        final int locationStart;
+        final int locationEnd;
+
+        OverlayContent(
+                String text,
+                int timeStart,
+                int timeEnd,
+                int locationStart,
+                int locationEnd
+        ) {
+            this.text = text;
+            this.timeStart = timeStart;
+            this.timeEnd = timeEnd;
+            this.locationStart = locationStart;
+            this.locationEnd = locationEnd;
+        }
     }
 
     static String displayPlace(FeedContentTracker.Snapshot snapshot) {
@@ -114,10 +220,11 @@ final class PublishInfo {
         return snapshot.city;
     }
 
-    private static void breakLine(StringBuilder text) {
+    private static int breakLine(StringBuilder text) {
         if (text.length() > 0) {
             text.append('\n');
         }
+        return text.length();
     }
 
     static String formatTime(long epochMs, TimeZone zone) {

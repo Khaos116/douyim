@@ -94,6 +94,59 @@ public final class PublishInfoTest {
     }
 
     @Test
+    public void composeOverlayMarksTimeAndLocationRanges() {
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                1758000000000L, "四川", "春熙路", "", "");
+
+        PublishInfo.OverlayContent content =
+                PublishInfo.composeOverlay(snapshot, true, true);
+
+        String timeLine = "发布于 "
+                + PublishInfo.formatTime(1758000000000L, TimeZone.getDefault());
+        assertEquals(0, content.timeStart);
+        assertEquals(timeLine.length(), content.timeEnd);
+        assertEquals(timeLine.length() + 1, content.locationStart);
+        assertEquals(content.text.length(), content.locationEnd);
+        assertEquals(
+                "IP属地：四川\n地点：春熙路",
+                content.text.substring(content.locationStart, content.locationEnd)
+        );
+    }
+
+    @Test
+    public void composeOverlayWithoutTimeStartsLocationAtZero() {
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                -1L, "四川", "", "", "");
+
+        PublishInfo.OverlayContent content =
+                PublishInfo.composeOverlay(snapshot, true, true);
+
+        assertEquals(-1, content.timeStart);
+        assertEquals(0, content.locationStart);
+        assertEquals(content.text.length(), content.locationEnd);
+    }
+
+    @Test
+    public void composeOverlayWithoutLocationLeavesRangeEmpty() {
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                1758000000000L, "", "", "", "");
+
+        PublishInfo.OverlayContent content =
+                PublishInfo.composeOverlay(snapshot, true, true);
+
+        assertEquals(0, content.timeStart);
+        assertEquals(-1, content.locationStart);
+        assertEquals(-1, content.locationEnd);
+    }
+
+    @Test
+    public void composeOverlayReturnsNullWhenEmpty() {
+        assertNull(PublishInfo.composeOverlay(null, true, true));
+        assertNull(PublishInfo.composeOverlay(
+                snapshot(-1L, "", "", "", ""), true, true));
+    }
+
+    @Test
     public void displayPlacePrefersPoiOverLocationOverCity() {
         assertEquals("春熙路", PublishInfo.displayPlace(
                 snapshot(-1L, "", "春熙路", "太古里", "成都市")));

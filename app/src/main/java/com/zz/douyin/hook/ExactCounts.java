@@ -1,5 +1,6 @@
 package com.zz.douyin.hook;
 
+import android.content.res.ColorStateList;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -26,13 +27,15 @@ final class ExactCounts {
 
     private static final Map<TextView, String> ORIGINALS =
             Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<TextView, ColorStateList> ORIGINAL_COLORS =
+            Collections.synchronizedMap(new WeakHashMap<>());
     private static final int[] LOCATION = new int[2];
     private static String lastAid;
 
     private ExactCounts() {
     }
 
-    static void apply(View decor) {
+    static void apply(View decor, boolean customColors, int countColor) {
         FeedContentTracker.Snapshot snapshot;
         try {
             snapshot = FeedContentTracker.current(decor);
@@ -93,21 +96,20 @@ final class ExactCounts {
             used.add(best);
             String exactText = String.valueOf(exact);
             if (best.getText().toString().equals(exactText)) {
+                applyCountColor(best, customColors, countColor, false);
                 continue;
             }
             if (!ORIGINALS.containsKey(best)) {
                 ORIGINALS.put(best, best.getText().toString());
             }
             best.setText(exactText);
+            applyCountColor(best, customColors, countColor, true);
             LogBook.i("[Counts] aid=" + snapshot.aid + " " + COUNTER_NAMES[index]
                     + " " + ORIGINALS.get(best) + "->" + exactText);
         }
     }
 
     static void restoreAll() {
-        if (ORIGINALS.isEmpty()) {
-            return;
-        }
         List<Map.Entry<TextView, String>> entries =
                 new ArrayList<>(ORIGINALS.entrySet());
         ORIGINALS.clear();
@@ -117,6 +119,44 @@ final class ExactCounts {
             } catch (RuntimeException ignored) {
                 // A detached view cannot be restored; the next bind fixes it.
             }
+        }
+        List<Map.Entry<TextView, ColorStateList>> colors =
+                new ArrayList<>(ORIGINAL_COLORS.entrySet());
+        ORIGINAL_COLORS.clear();
+        for (Map.Entry<TextView, ColorStateList> entry : colors) {
+            try {
+                if (entry.getValue() == null) {
+                    continue;
+                }
+                entry.getKey().setTextColor(entry.getValue());
+            } catch (RuntimeException ignored) {
+                // A detached view cannot be restored; the next bind fixes it.
+            }
+        }
+    }
+
+    private static void applyCountColor(
+            TextView view,
+            boolean customColors,
+            int countColor,
+            boolean rewritten
+    ) {
+        if (!customColors) {
+            ColorStateList saved = ORIGINAL_COLORS.remove(view);
+            if (saved != null) {
+                try {
+                    view.setTextColor(saved);
+                } catch (RuntimeException ignored) {
+                    // The next bind fixes a detached view.
+                }
+            }
+            return;
+        }
+        if (!ORIGINAL_COLORS.containsKey(view)) {
+            ORIGINAL_COLORS.put(view, view.getTextColors());
+        }
+        if (rewritten || view.getCurrentTextColor() != countColor) {
+            view.setTextColor(countColor);
         }
     }
 

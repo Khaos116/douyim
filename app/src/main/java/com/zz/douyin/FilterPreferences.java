@@ -24,6 +24,10 @@ public final class FilterPreferences {
     public static final String KEY_EXACT_COUNTS = "exact_counts";
     public static final String KEY_PUBLISH_TIME = "publish_time";
     public static final String KEY_PUBLISH_LOCATION = "publish_location";
+    public static final String KEY_CUSTOM_TEXT_COLORS = "custom_text_colors";
+    public static final String KEY_COUNT_TEXT_COLOR = "count_text_color";
+    public static final String KEY_PUBLISH_TIME_COLOR = "publish_time_color";
+    public static final String KEY_LOCATION_TEXT_COLOR = "location_text_color";
 
     public static final boolean DEFAULT_SKIP_ADS = true;
     public static final boolean DEFAULT_SKIP_IMAGES = true;
@@ -34,6 +38,10 @@ public final class FilterPreferences {
     public static final boolean DEFAULT_EXACT_COUNTS = true;
     public static final boolean DEFAULT_PUBLISH_TIME = true;
     public static final boolean DEFAULT_PUBLISH_LOCATION = true;
+    public static final boolean DEFAULT_CUSTOM_TEXT_COLORS = false;
+    public static final int DEFAULT_COUNT_TEXT_COLOR = 0xFFFFFFFF;
+    public static final int DEFAULT_PUBLISH_TIME_COLOR = 0xFFFFFFFF;
+    public static final int DEFAULT_LOCATION_TEXT_COLOR = 0xFFFFFFFF;
 
     private FilterPreferences() {
     }
@@ -101,6 +109,29 @@ public final class FilterPreferences {
         return preferences == null
                 ? DEFAULT_PUBLISH_LOCATION
                 : preferences.getBoolean(KEY_PUBLISH_LOCATION, DEFAULT_PUBLISH_LOCATION);
+    }
+
+    public static boolean readCustomTextColors(SharedPreferences preferences) {
+        return preferences != null
+                && preferences.getBoolean(KEY_CUSTOM_TEXT_COLORS, DEFAULT_CUSTOM_TEXT_COLORS);
+    }
+
+    public static int readCountTextColor(SharedPreferences preferences) {
+        return preferences == null
+                ? DEFAULT_COUNT_TEXT_COLOR
+                : preferences.getInt(KEY_COUNT_TEXT_COLOR, DEFAULT_COUNT_TEXT_COLOR);
+    }
+
+    public static int readPublishTimeColor(SharedPreferences preferences) {
+        return preferences == null
+                ? DEFAULT_PUBLISH_TIME_COLOR
+                : preferences.getInt(KEY_PUBLISH_TIME_COLOR, DEFAULT_PUBLISH_TIME_COLOR);
+    }
+
+    public static int readLocationTextColor(SharedPreferences preferences) {
+        return preferences == null
+                ? DEFAULT_LOCATION_TEXT_COLOR
+                : preferences.getInt(KEY_LOCATION_TEXT_COLOR, DEFAULT_LOCATION_TEXT_COLOR);
     }
 
     public static final class Values {

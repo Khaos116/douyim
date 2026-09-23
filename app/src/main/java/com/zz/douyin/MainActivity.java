@@ -42,6 +42,11 @@ public final class MainActivity extends Activity
     private Switch exactCounts;
     private Switch publishTime;
     private Switch publishLocation;
+    private Switch customColors;
+    private EditText countColorInput;
+    private EditText timeColorInput;
+    private EditText locationColorInput;
+    private Button saveColors;
     private EditText keywordInput;
     private Button saveKeywords;
     private SharedPreferences preferences;
@@ -176,9 +181,46 @@ public final class MainActivity extends Activity
         publishLocation = addSwitch(playbackCard, "一直显示IP属地/地点",
                 "左上角追加当前视频IP属地与POI地点；无数据时不显示、不伪造",
                 FilterPreferences.KEY_PUBLISH_LOCATION);
+        addDivider(playbackCard);
+        customColors = addSwitch(playbackCard, "自定义文本颜色",
+                "用下方颜色覆盖精确数字/发布时间/IP属地地点；关闭后恢复抖音原样式",
+                FilterPreferences.KEY_CUSTOM_TEXT_COLORS);
         LinearLayout.LayoutParams playbackCardParams = matchWrap();
         playbackCardParams.topMargin = dp(10);
         root.addView(playbackCard, playbackCardParams);
+
+        TextView colorHeader = sectionTitle("文本颜色");
+        LinearLayout.LayoutParams colorHeaderParams = matchWrap();
+        colorHeaderParams.topMargin = dp(28);
+        root.addView(colorHeader, colorHeaderParams);
+
+        LinearLayout colorCard = card();
+        TextView colorHint = text(
+                "每行一个十六进制颜色，例如 #FF5722；支持 #RGB、#RRGGBB、#AARRGGBB。",
+                14,
+                TEXT_SECONDARY
+        );
+        colorHint.setLineSpacing(0, 1.25f);
+        colorCard.addView(colorHint, matchWrap());
+        countColorInput = addColorField(colorCard, "精确数字颜色");
+        timeColorInput = addColorField(colorCard, "发布时间颜色");
+        locationColorInput = addColorField(colorCard, "IP属地/地点颜色");
+
+        saveColors = new Button(this);
+        saveColors.setText("保存颜色");
+        saveColors.setTextColor(Color.WHITE);
+        saveColors.setTextSize(15);
+        saveColors.setAllCaps(false);
+        saveColors.setBackground(rounded(PRIMARY, 12));
+        saveColors.setOnClickListener(view -> saveColorSettings());
+        LinearLayout.LayoutParams saveColorsParams = matchWrap();
+        saveColorsParams.topMargin = dp(14);
+        saveColorsParams.height = dp(48);
+        colorCard.addView(saveColors, saveColorsParams);
+
+        LinearLayout.LayoutParams colorCardParams = matchWrap();
+        colorCardParams.topMargin = dp(10);
+        root.addView(colorCard, colorCardParams);
 
         TextView keywordHeader = sectionTitle("视频关键词");
         LinearLayout.LayoutParams keywordHeaderParams = matchWrap();
@@ -290,6 +332,16 @@ public final class MainActivity extends Activity
         exactCounts.setChecked(FilterPreferences.readExactCounts(preferences));
         publishTime.setChecked(FilterPreferences.readPublishTime(preferences));
         publishLocation.setChecked(FilterPreferences.readPublishLocation(preferences));
+        customColors.setChecked(FilterPreferences.readCustomTextColors(preferences));
+        countColorInput.setText(
+                com.zz.douyin.hook.FeedUiStyle.toHex(
+                        FilterPreferences.readCountTextColor(preferences)));
+        timeColorInput.setText(
+                com.zz.douyin.hook.FeedUiStyle.toHex(
+                        FilterPreferences.readPublishTimeColor(preferences)));
+        locationColorInput.setText(
+                com.zz.douyin.hook.FeedUiStyle.toHex(
+                        FilterPreferences.readLocationTextColor(preferences)));
         keywordInput.setText(values.keywordText);
         keywordInput.setSelection(keywordInput.length());
         serviceStatus.setText(
@@ -380,9 +432,73 @@ public final class MainActivity extends Activity
         exactCounts.setEnabled(enabled);
         publishTime.setEnabled(enabled);
         publishLocation.setEnabled(enabled);
+        customColors.setEnabled(enabled);
+        countColorInput.setEnabled(enabled);
+        timeColorInput.setEnabled(enabled);
+        locationColorInput.setEnabled(enabled);
+        saveColors.setEnabled(enabled);
+        saveColors.setAlpha(enabled ? 1f : 0.45f);
         keywordInput.setEnabled(enabled);
         saveKeywords.setEnabled(enabled);
         saveKeywords.setAlpha(enabled ? 1f : 0.45f);
+    }
+
+    private EditText addColorField(LinearLayout parent, String label) {
+        TextView labelView = text(label, 14, TEXT_PRIMARY);
+        LinearLayout.LayoutParams labelParams = matchWrap();
+        labelParams.topMargin = dp(14);
+        parent.addView(labelView, labelParams);
+        EditText input = new EditText(this);
+        input.setTextColor(TEXT_PRIMARY);
+        input.setHintTextColor(Color.rgb(112, 114, 123));
+        input.setTextSize(16);
+        input.setHint("#FFFFFF");
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        GradientDrawable inputBackground = rounded(Color.rgb(38, 39, 45), 12);
+        inputBackground.setStroke(dp(1), Color.rgb(58, 60, 68));
+        input.setBackground(inputBackground);
+        input.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams inputParams = matchWrap();
+        inputParams.topMargin = dp(8);
+        parent.addView(input, inputParams);
+        return input;
+    }
+
+    private void saveColorSettings() {
+        SharedPreferences current = preferences;
+        if (current == null) {
+            Toast.makeText(this, "未连接 LSPosed 服务", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String countHex = countColorInput.getText().toString().trim();
+        String timeHex = timeColorInput.getText().toString().trim();
+        String locationHex = locationColorInput.getText().toString().trim();
+        if (!com.zz.douyin.hook.FeedUiStyle.isValidColor(countHex)
+                || !com.zz.douyin.hook.FeedUiStyle.isValidColor(timeHex)
+                || !com.zz.douyin.hook.FeedUiStyle.isValidColor(locationHex)) {
+            Toast.makeText(this, "颜色格式无效，请用 #RRGGBB", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        SharedPreferences.Editor editor = current.edit();
+        if (editor == null) {
+            Toast.makeText(this, "设置保存失败", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        editor.putInt(
+                FilterPreferences.KEY_COUNT_TEXT_COLOR,
+                com.zz.douyin.hook.FeedUiStyle.parseColor(
+                        countHex, FilterPreferences.DEFAULT_COUNT_TEXT_COLOR));
+        editor.putInt(
+                FilterPreferences.KEY_PUBLISH_TIME_COLOR,
+                com.zz.douyin.hook.FeedUiStyle.parseColor(
+                        timeHex, FilterPreferences.DEFAULT_PUBLISH_TIME_COLOR));
+        editor.putInt(
+                FilterPreferences.KEY_LOCATION_TEXT_COLOR,
+                com.zz.douyin.hook.FeedUiStyle.parseColor(
+                        locationHex, FilterPreferences.DEFAULT_LOCATION_TEXT_COLOR));
+        editor.apply();
+        Toast.makeText(this, "颜色已保存", Toast.LENGTH_SHORT).show();
     }
 
     private LinearLayout card() {

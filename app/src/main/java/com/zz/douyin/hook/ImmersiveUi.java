@@ -57,6 +57,10 @@ final class ImmersiveUi {
     private static volatile boolean exactCountsEnabled = true;
     private static volatile boolean publishTimeEnabled = true;
     private static volatile boolean publishLocationEnabled = true;
+    private static volatile boolean customColorsEnabled;
+    private static volatile int countTextColor = 0xFFFFFFFF;
+    private static volatile int publishTimeColor = 0xFFFFFFFF;
+    private static volatile int locationTextColor = 0xFFFFFFFF;
     private static String lastAutoNextAid;
     private static boolean lastAutoNextFired;
     private static SharedPreferences immersivePreferences;
@@ -133,6 +137,10 @@ final class ImmersiveUi {
         exactCountsEnabled = com.zz.douyin.FilterPreferences.readExactCounts(preferences);
         publishTimeEnabled = com.zz.douyin.FilterPreferences.readPublishTime(preferences);
         publishLocationEnabled = com.zz.douyin.FilterPreferences.readPublishLocation(preferences);
+        customColorsEnabled = com.zz.douyin.FilterPreferences.readCustomTextColors(preferences);
+        countTextColor = com.zz.douyin.FilterPreferences.readCountTextColor(preferences);
+        publishTimeColor = com.zz.douyin.FilterPreferences.readPublishTimeColor(preferences);
+        locationTextColor = com.zz.douyin.FilterPreferences.readLocationTextColor(preferences);
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
         MAIN.post(() -> {
             if (changed) {
@@ -549,13 +557,20 @@ final class ImmersiveUi {
         }
 
         if (exactCountsEnabled) {
-            ExactCounts.apply(decor);
+            ExactCounts.apply(decor, customColorsEnabled, countTextColor);
         } else {
             ExactCounts.restoreAll();
         }
 
         if (publishTimeEnabled || publishLocationEnabled) {
-            PublishInfo.update(decor, publishTimeEnabled, publishLocationEnabled);
+            PublishInfo.update(
+                    decor,
+                    publishTimeEnabled,
+                    publishLocationEnabled,
+                    customColorsEnabled,
+                    publishTimeColor,
+                    locationTextColor
+            );
         } else {
             PublishInfo.remove();
         }
