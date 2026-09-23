@@ -70,6 +70,16 @@ public final class LogViewerActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BACKGROUND);
         root.setPadding(dp(16), dp(16), dp(16), dp(16));
+        // Edge-to-edge draws behind the status/nav bars; pad with the real
+        // insets instead of a fixed guess so the title never slides under.
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(
+                    dp(16),
+                    dp(16) + insets.getSystemWindowInsetTop(),
+                    dp(16),
+                    dp(16) + insets.getSystemWindowInsetBottom());
+            return insets.consumeSystemWindowInsets();
+        });
 
         TextView title = text("运行日志", 28, TEXT_PRIMARY);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
