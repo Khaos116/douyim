@@ -200,6 +200,23 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
+    public void createTimeSecondsNormalizeToMs() throws Exception {
+        FakeAweme aweme = videoAweme(0);
+        aweme.createTime = 1758000000L;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+
+        assertEquals(1758000000000L, snapshot.createTimeMs);
+    }
+
+    @Test
+    public void missingCreateTimeYieldsUnknown() throws Exception {
+        FeedContentTracker.Snapshot snapshot = snapshot(videoAweme(0));
+
+        assertEquals(-1L, snapshot.createTimeMs);
+    }
+
+    @Test
     public void keywordMatchesVideoItemTitle() {
         FakeAweme aweme = videoAweme(0);
         aweme.itemTitle = "今天一起玩超级游戏";
@@ -303,6 +320,7 @@ public final class FeedContentTrackerTest {
         public boolean hostImage;
         public boolean hostMultiImage;
         public Object rawAd;
+        public long createTime;
 
         public boolean isImage() {
             return hostImage;

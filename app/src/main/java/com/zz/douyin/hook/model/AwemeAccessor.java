@@ -119,6 +119,21 @@ public final class AwemeAccessor {
         );
     }
 
+    public long createTimeMs() {
+        Object value = invokeNoArg(type, aweme, "getCreateTime");
+        if (value == null) {
+            value = readField(type, aweme, "createTime");
+        }
+        if (value == null) {
+            value = readSerializedField(aweme, "create_time");
+        }
+        long seconds = longValue(value, -1L);
+        if (seconds <= 0L) {
+            return -1L;
+        }
+        return seconds < 1_000_000_000_000L ? seconds * 1000L : seconds;
+    }
+
     public Object statistics() {
         Object statistics = invokeNoArg(type, aweme, "getStatistics");
         if (statistics == null) {

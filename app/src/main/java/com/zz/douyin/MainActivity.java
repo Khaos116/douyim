@@ -40,6 +40,7 @@ public final class MainActivity extends Activity
     private Switch showDanmaku;
     private Switch autoNext;
     private Switch exactCounts;
+    private Switch publishTime;
     private EditText keywordInput;
     private Button saveKeywords;
     private SharedPreferences preferences;
@@ -166,6 +167,10 @@ public final class MainActivity extends Activity
         exactCounts = addSwitch(playbackCard, "精确显示互动数",
                 "点赞/评论/收藏显示完整数字，不再缩写为“万”",
                 FilterPreferences.KEY_EXACT_COUNTS);
+        addDivider(playbackCard);
+        publishTime = addSwitch(playbackCard, "一直显示发布时间",
+                "左上角常显当前视频发布时间，精确到分钟",
+                FilterPreferences.KEY_PUBLISH_TIME);
         LinearLayout.LayoutParams playbackCardParams = matchWrap();
         playbackCardParams.topMargin = dp(10);
         root.addView(playbackCard, playbackCardParams);
@@ -278,6 +283,7 @@ public final class MainActivity extends Activity
         showDanmaku.setChecked(FilterPreferences.readShowDanmaku(preferences));
         autoNext.setChecked(FilterPreferences.readAutoNext(preferences));
         exactCounts.setChecked(FilterPreferences.readExactCounts(preferences));
+        publishTime.setChecked(FilterPreferences.readPublishTime(preferences));
         keywordInput.setText(values.keywordText);
         keywordInput.setSelection(keywordInput.length());
         serviceStatus.setText(
@@ -366,6 +372,7 @@ public final class MainActivity extends Activity
         showDanmaku.setEnabled(enabled);
         autoNext.setEnabled(enabled);
         exactCounts.setEnabled(enabled);
+        publishTime.setEnabled(enabled);
         keywordInput.setEnabled(enabled);
         saveKeywords.setEnabled(enabled);
         saveKeywords.setAlpha(enabled ? 1f : 0.45f);

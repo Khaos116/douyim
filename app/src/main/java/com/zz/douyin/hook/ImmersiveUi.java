@@ -55,6 +55,7 @@ final class ImmersiveUi {
     private static volatile boolean immersiveEnabled = true;
     private static volatile boolean autoNextEnabled = true;
     private static volatile boolean exactCountsEnabled = true;
+    private static volatile boolean publishTimeEnabled = true;
     private static String lastAutoNextAid;
     private static boolean lastAutoNextFired;
     private static SharedPreferences immersivePreferences;
@@ -129,6 +130,7 @@ final class ImmersiveUi {
         immersiveEnabled = com.zz.douyin.FilterPreferences.readImmersiveEnabled(preferences);
         autoNextEnabled = com.zz.douyin.FilterPreferences.readAutoNext(preferences);
         exactCountsEnabled = com.zz.douyin.FilterPreferences.readExactCounts(preferences);
+        publishTimeEnabled = com.zz.douyin.FilterPreferences.readPublishTime(preferences);
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
         MAIN.post(() -> {
             if (changed) {
@@ -548,6 +550,12 @@ final class ImmersiveUi {
             ExactCounts.apply(decor);
         } else {
             ExactCounts.restoreAll();
+        }
+
+        if (publishTimeEnabled) {
+            PublishInfo.update(decor);
+        } else {
+            PublishInfo.remove();
         }
 
         boolean keepUiHidden = immersiveEnabled && PlaybackState.shouldKeepUiHidden();

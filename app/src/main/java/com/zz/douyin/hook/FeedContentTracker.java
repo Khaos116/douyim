@@ -228,6 +228,7 @@ public final class FeedContentTracker {
         long collectCount = statistics.collectCount();
         long shareCount = statistics.shareCount();
         long playCount = statistics.playCount();
+        long createTimeMs = model.createTimeMs();
         boolean photo =
                 hostImage
                         || hostMultiImage
@@ -292,6 +293,7 @@ public final class FeedContentTracker {
                 collectCount,
                 shareCount,
                 playCount,
+                createTimeMs,
                 reason,
                 playUrls
         );
@@ -317,6 +319,7 @@ public final class FeedContentTracker {
         final long collectCount;
         final long shareCount;
         final long playCount;
+        final long createTimeMs;
         final String filterReason;
         final List<PlayUrl> playUrls;
 
@@ -340,6 +343,7 @@ public final class FeedContentTracker {
                 long collectCount,
                 long shareCount,
                 long playCount,
+                long createTimeMs,
                 String filterReason,
                 List<PlayUrl> playUrls
         ) {
@@ -362,6 +366,7 @@ public final class FeedContentTracker {
             this.collectCount = collectCount;
             this.shareCount = shareCount;
             this.playCount = playCount;
+            this.createTimeMs = createTimeMs;
             this.filterReason = filterReason;
             this.playUrls = playUrls;
         }
