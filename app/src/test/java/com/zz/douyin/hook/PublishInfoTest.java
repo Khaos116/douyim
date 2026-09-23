@@ -170,38 +170,6 @@ public final class PublishInfoTest {
     }
 
     @Test
-    public void descriptionMatchAcceptsTruncatedOrSuffixedText() {
-        String desc = "今天在春熙路逛街人超级多特别热闹";
-
-        assertTrue(PublishInfo.isDescriptionMatch("今天在春熙路逛街人超级多", desc, ""));
-        assertTrue(PublishInfo.isDescriptionMatch(desc + "…展开", desc, ""));
-        assertTrue(PublishInfo.isDescriptionMatch(desc, desc, ""));
-    }
-
-    @Test
-    public void descriptionMatchFallsBackToTitle() {
-        assertTrue(PublishInfo.isDescriptionMatch(
-                "超级游戏实况第壹佰期", "", "超级游戏实况第壹佰期精彩集锦"));
-    }
-
-    @Test
-    public void descriptionMatchRejectsShortOrBlankText() {
-        String desc = "今天在春熙路逛街人超级多特别热闹";
-
-        assertTrue(!PublishInfo.isDescriptionMatch("逛街", desc, ""));
-        assertTrue(!PublishInfo.isDescriptionMatch("   ", desc, ""));
-        assertTrue(!PublishInfo.isDescriptionMatch(null, desc, ""));
-        assertTrue(!PublishInfo.isDescriptionMatch("今天在太古里喝咖啡看书", desc, ""));
-        assertTrue(!PublishInfo.isDescriptionMatch(desc, "", ""));
-    }
-
-    @Test
-    public void descriptionMatchIgnoresWhitespace() {
-        assertTrue(PublishInfo.isDescriptionMatch(
-                "今天在春熙路\n逛街人超级多", "今天在春熙路逛街人超级多特别热闹", ""));
-    }
-
-    @Test
     public void displayPlacePrefersPoiOverLocationOverCity() {
         assertEquals("春熙路", PublishInfo.displayPlace(
                 snapshot(-1L, -1L, "", "春熙路", "太古里", "成都市")));

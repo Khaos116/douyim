@@ -210,11 +210,11 @@ public final class MainActivity extends Activity
                 FilterPreferences.KEY_EXACT_COUNTS);
         addDivider(playbackCard);
         publishTime = addSwitch(playbackCard, "一直显示发布时间",
-                "在视频描述下方单行显示发布时间，精确到分钟",
+                "左上角单行显示发布时间，精确到分钟",
                 FilterPreferences.KEY_PUBLISH_TIME);
         addDivider(playbackCard);
         publishLocation = addSwitch(playbackCard, "一直显示IP属地/地点",
-                "在同一行追加IP属地与地点；无数据时不显示、不伪造",
+                "左上角同行追加IP属地与地点；无数据时不显示、不伪造",
                 FilterPreferences.KEY_PUBLISH_LOCATION);
         addDivider(playbackCard);
         customColors = addSwitch(playbackCard, "自定义文本颜色",

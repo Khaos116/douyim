@@ -19,31 +19,21 @@ import java.util.TimeZone;
 
 /**
  * Shows the current video's publish time and location in a small single-line
- * overlay anchored below the video description.
+ * overlay pinned to the top-left corner.
  *
  * <p>The overlay is our own view because Douyin's feed UI does not reliably
  * expose publish-time/location TextViews to find and rewrite. It never
  * consumes touches and is removed whenever both switches are off or nothing
- * is known. The description anchor is found by matching visible text against
- * the snapshot; when no match exists the overlay falls back to a fixed
- * bottom-left slot so it never jumps to the top.
+ * is known. A fixed corner is used deliberately: anchoring below the video
+ * description overlapped feed text on real devices.
  */
 final class PublishInfo {
-    private static final int MIN_DESC_MATCH_LENGTH = 8;
-
     private static WeakReference<TextView> overlay = new WeakReference<>(null);
     private static WeakReference<View> overlayDecor = new WeakReference<>(null);
-    private static WeakReference<View> anchor = new WeakReference<>(null);
-    private static final int[] LOCATION = new int[2];
-    private static final int[] DECOR_LOCATION = new int[2];
     private static String lastText;
     private static int lastTimeColor;
     private static int lastLocationColor;
     private static boolean lastCustomColors;
-    private static int lastLeft = -1;
-    private static int lastTop = -1;
-    private static String lastAnchorAid;
-    private static String lastAnchorMissAid;
     private static SimpleDateFormat formatter;
 
     private PublishInfo() {
@@ -81,14 +71,11 @@ final class PublishInfo {
             overlay = new WeakReference<>(view);
             overlayDecor = new WeakReference<>(decor);
             lastText = null;
-            lastLeft = -1;
-            lastTop = -1;
         }
         if (view == null) {
             lastText = null;
             return;
         }
-        reposition(view, decor, snapshot);
         if (!content.text.equals(lastText)
                 || customColors != lastCustomColors
                 || (customColors && (timeColor != lastTimeColor
@@ -107,160 +94,7 @@ final class PublishInfo {
         removeOverlay(overlay.get());
         overlay.clear();
         overlayDecor.clear();
-        anchor.clear();
         lastText = null;
-        lastLeft = -1;
-        lastTop = -1;
-        lastAnchorAid = null;
-    }
-
-    private static void reposition(
-            TextView view,
-            View decor,
-            FeedContentTracker.Snapshot snapshot
-    ) {
-        if (snapshot != null && !snapshot.aid.equals(lastAnchorAid)) {
-            lastAnchorAid = snapshot.aid;
-            anchor.clear();
-        }
-        View cached = anchor.get();
-        if ((cached == null || !cached.isShown())
-                && decor != null && snapshot != null) {
-            cached = findDescriptionAnchor(
-                    decor, snapshot.description, snapshot.title);
-            anchor = new WeakReference<>(cached);
-            logAnchor(cached, snapshot.aid);
-        }
-        applyPosition(view, decor, cached);
-    }
-
-    private static void applyPosition(
-            TextView view,
-            View decor,
-            View anchorView
-    ) {
-        if (decor == null || decor.getResources() == null) {
-            return;
-        }
-        float density = decor.getResources().getDisplayMetrics().density;
-        int left;
-        int top;
-        if (anchorView != null) {
-            decor.getLocationOnScreen(DECOR_LOCATION);
-            anchorView.getLocationOnScreen(LOCATION);
-            left = LOCATION[0] - DECOR_LOCATION[0];
-            top = LOCATION[1] + anchorView.getHeight() - DECOR_LOCATION[1]
-                    + Math.round(2f * density);
-            left = Math.max(0, left);
-            top = Math.max(0, Math.min(
-                    top, decor.getHeight() - Math.round(32f * density)));
-        } else {
-            left = Math.round(12f * density);
-            top = decor.getHeight() - Math.round(180f * density);
-            top = Math.max(0, top);
-        }
-        if (left == lastLeft && top == lastTop) {
-            return;
-        }
-        lastLeft = left;
-        lastTop = top;
-        if (view.getLayoutParams() instanceof FrameLayout.LayoutParams params) {
-            params.gravity = Gravity.TOP | Gravity.START;
-            params.leftMargin = left;
-            params.topMargin = top;
-            view.setLayoutParams(params);
-        }
-    }
-
-    private static View findDescriptionAnchor(
-            View decor,
-            String desc,
-            String title
-    ) {
-        View[] best = new View[1];
-        int[] bestLength = new int[]{-1};
-        int[] bestTop = new int[]{Integer.MIN_VALUE};
-        collectAnchor(
-                decor, desc, title, decor.getHeight(),
-                best, bestLength, bestTop);
-        return best[0];
-    }
-
-    private static void collectAnchor(
-            View node,
-            String desc,
-            String title,
-            int decorHeight,
-            View[] best,
-            int[] bestLength,
-            int[] bestTop
-    ) {
-        if (node instanceof TextView text
-                && node.isShown()
-                && !"douyin_publish_info".equals(node.getTag())) {
-            CharSequence content = text.getText();
-            String shown = content == null ? "" : content.toString();
-            if (isDescriptionMatch(shown, desc, title)) {
-                node.getLocationOnScreen(LOCATION);
-                if (LOCATION[1] < decorHeight * 0.5) {
-                    // Descriptions live in the lower half; top matches are
-                    // false positives from other screens (tabs, comments).
-                } else {
-                    int length = shown.trim().length();
-                    if (length > bestLength[0]
-                            || (length == bestLength[0]
-                            && LOCATION[1] > bestTop[0])) {
-                        best[0] = node;
-                        bestLength[0] = length;
-                        bestTop[0] = LOCATION[1];
-                    }
-                }
-            }
-        }
-        if (node instanceof ViewGroup group) {
-            for (int index = 0, count = group.getChildCount();
-                    index < count;
-                    index++) {
-                collectAnchor(
-                        group.getChildAt(index), desc, title, decorHeight,
-                        best, bestLength, bestTop);
-            }
-        }
-    }
-
-    private static void logAnchor(View anchorView, String aid) {
-        if (anchorView != null) {
-            anchorView.getLocationOnScreen(LOCATION);
-            LogBook.i("[PublishInfo] anchor desc view="
-                    + anchorView.getClass().getName()
-                    + " top=" + LOCATION[1] + " aid=" + aid);
-            return;
-        }
-        if (!aid.equals(lastAnchorMissAid)) {
-            lastAnchorMissAid = aid;
-            LogBook.d("[PublishInfo] no desc anchor; bottom fallback aid=" + aid);
-        }
-    }
-
-    static boolean isDescriptionMatch(String shown, String desc, String title) {
-        if (shown == null) {
-            return false;
-        }
-        return containsFolded(desc, shown) || containsFolded(title, shown);
-    }
-
-    private static boolean containsFolded(String model, String shown) {
-        if (model == null || shown == null) {
-            return false;
-        }
-        String flatModel = model.replaceAll("\\s+", "");
-        String flatShown = shown.replaceAll("\\s+", "").trim();
-        if (flatShown.length() >= MIN_DESC_MATCH_LENGTH
-                && flatModel.contains(flatShown)) {
-            return true;
-        }
-        return flatModel.length() >= MIN_DESC_MATCH_LENGTH
-                && flatShown.contains(flatModel);
     }
 
     private static CharSequence style(
