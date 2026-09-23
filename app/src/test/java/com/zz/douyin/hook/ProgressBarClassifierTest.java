@@ -51,6 +51,17 @@ public final class ProgressBarClassifierTest {
     }
 
     @Test
+    public void forceVisibleOnlyOnKnownEqualAid() {
+        assertTrue(ProgressBarClassifier.shouldForceVisible("a1", "a1"));
+        assertFalse(ProgressBarClassifier.shouldForceVisible("a1", "a2"));
+        assertFalse(ProgressBarClassifier.shouldForceVisible("a1", null));
+        assertFalse(ProgressBarClassifier.shouldForceVisible(null, "a1"));
+        assertFalse(ProgressBarClassifier.shouldForceVisible("", ""));
+        assertFalse(ProgressBarClassifier.shouldForceVisible("unknown", "unknown"));
+        assertFalse(ProgressBarClassifier.shouldForceVisible("unknown", "a1"));
+    }
+
+    @Test
     public void wrongGeometryRejected() {
         assertFalse(ProgressBarClassifier.isProgressBar(
                 "android.widget.ProgressBar",

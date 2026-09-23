@@ -102,6 +102,15 @@ final class ImmersiveUi {
             new WeakReference<>(null);
     private static WeakReference<View> lastProgressUnknown =
             new WeakReference<>(null);
+    private static WeakReference<View> lastProgressGone =
+            new WeakReference<>(null);
+    private static WeakReference<View> lastProgressView =
+            new WeakReference<>(null);
+    private static String lastProgressAid;
+    private static String lastContentAid;
+    private static WeakReference<View> lastForceLogged =
+            new WeakReference<>(null);
+    private static String lastForceLoggedAid;
     private static String lastLiveTabKeepAid;
     private static String lastUserPausedKeepAid;
     private static long lastHandledTouchDownTime;
@@ -646,9 +655,13 @@ final class ImmersiveUi {
             }
             if (showProgressBar) {
                 collectVisibleProgressViews(decor, preservedViews);
+                keepForcedProgressView(preservedViews);
             }
             restorePreservedPaths(preservedViews);
             hideOutsidePreservedPaths(decor, preservedViews);
+            if (showProgressBar) {
+                forceProgressVisible();
+            }
             updateGesturePaths(decor, videos);
             hideSystemBars(activity, decor);
         } else {
@@ -1332,6 +1345,8 @@ final class ImmersiveUi {
                         && ProgressBarClassifier.isBottomStrip(
                                 top, decorHeight)) {
                     out.add(node);
+                    lastProgressView = new WeakReference<>(node);
+                    lastProgressAid = lastContentAid;
                     View logged = lastProgressLogged.get();
                     if (logged != node) {
                         lastProgressLogged = new WeakReference<>(node);
@@ -1346,6 +1361,19 @@ final class ImmersiveUi {
                             node, className, width, height, top,
                             decorWidth, decorHeight);
                 }
+            }
+        } else if (node.isAttachedToWindow()
+                && node.getVisibility() != View.VISIBLE
+                && ProgressBarClassifier.isCandidateClass(
+                        node.getClass().getName())) {
+            // Host-hidden candidates (GONE/INVISIBLE) never reach the geometry
+            // checks; log them so native auto-hide is distinguishable from a
+            // classifier miss.
+            if (lastProgressGone.get() != node) {
+                lastProgressGone = new WeakReference<>(node);
+                LogBook.i("[FeedUi] progress gone class="
+                        + node.getClass().getName()
+                        + " visibility=" + node.getVisibility());
             }
         }
         if (node instanceof ViewGroup group) {
@@ -1374,6 +1402,58 @@ final class ImmersiveUi {
                 + " decor=" + decorWidth + "x" + decorHeight
                 + " stage=" + ProgressBarClassifier.rejectStage(
                         className, width, height, top, decorWidth, decorHeight));
+    }
+
+    /**
+     * Keeps the last matched progress view (and only its ancestor path, not
+     * siblings) out of our own hiding, so a natively-hidden bar's container
+     * is not alpha-hidden before {@link #forceProgressVisible} re-shows it.
+     */
+    private static void keepForcedProgressView(List<View> preservedViews) {
+        View view = lastProgressView.get();
+        if (view == null || !view.isAttachedToWindow()) {
+            return;
+        }
+        if (!ProgressBarClassifier.shouldForceVisible(
+                lastProgressAid, lastContentAid)) {
+            return;
+        }
+        if (!preservedViews.contains(view)) {
+            preservedViews.add(view);
+        }
+    }
+
+    /**
+     * Re-shows the last matched progress view when the host fades or hides it
+     * natively (observed on short videos): matching alone only exempts the
+     * view from our own hiding, it cannot undo the host's. Aid-gated so a
+     * recycled bar never leaks onto other content.
+     */
+    private static void forceProgressVisible() {
+        View view = lastProgressView.get();
+        if (view == null || !view.isAttachedToWindow()) {
+            return;
+        }
+        if (!ProgressBarClassifier.shouldForceVisible(
+                lastProgressAid, lastContentAid)) {
+            return;
+        }
+        boolean changed = false;
+        if (view.getVisibility() != View.VISIBLE) {
+            view.setVisibility(View.VISIBLE);
+            changed = true;
+        }
+        if (view.getAlpha() < 1f) {
+            view.setAlpha(1f);
+            changed = true;
+        }
+        if (changed
+                && (lastForceLogged.get() != view
+                || !lastContentAid.equals(lastForceLoggedAid))) {
+            lastForceLogged = new WeakReference<>(view);
+            lastForceLoggedAid = lastContentAid;
+            LogBook.i("[FeedUi] force progress visible aid=" + lastContentAid);
+        }
     }
 
     private static void logProgressUnknown(
@@ -1696,6 +1776,7 @@ final class ImmersiveUi {
         lastContentCheckAt = now;
 
         FeedContentTracker.Snapshot model = FeedContentTracker.current(decor);
+        lastContentAid = model == null ? null : model.aid;
         if (model != null) {
             if (PlaybackState.clearUserPauseForContentChange(model.aid)) {
                 transitionBoostUntil = Math.max(

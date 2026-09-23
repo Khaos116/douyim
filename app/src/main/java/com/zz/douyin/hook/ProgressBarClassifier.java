@@ -43,6 +43,18 @@ final class ProgressBarClassifier {
     }
 
     /**
+     * Whether a previously matched progress view may be force-shown: only
+     * when both aids are known and equal, so a stale bar never leaks onto
+     * other content (live pages, ads) after a swipe.
+     */
+    static boolean shouldForceVisible(String progressAid, String contentAid) {
+        return progressAid != null
+                && !progressAid.isEmpty()
+                && !"unknown".equals(progressAid)
+                && progressAid.equals(contentAid);
+    }
+
+    /**
      * Names the first check a candidate view fails, for near-miss
      * diagnostics. Returns "" when the view fully matches.
      */
