@@ -1,6 +1,7 @@
 package com.zz.douyin;
 
 import android.app.Application;
+import android.util.Log;
 
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -17,7 +18,14 @@ public final class ModuleApplication extends Application
     @Override
     public void onCreate() {
         super.onCreate();
-        XposedServiceHelper.registerListener(this);
+        try {
+            XposedServiceHelper.registerListener(this);
+        } catch (Throwable failed) {
+            Log.w("DouyinImmersive",
+                    "[LSPatch] service helper unavailable;"
+                            + " settings stay read-only",
+                    failed);
+        }
     }
 
     @Override

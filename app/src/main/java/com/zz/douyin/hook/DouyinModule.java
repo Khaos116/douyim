@@ -53,9 +53,19 @@ public final class DouyinModule extends XposedModule {
         installSubsystem(
                 "feed content tracker",
                 () -> {
-                    SharedPreferences preferences = getRemotePreferences(
-                            com.zz.douyin.FilterPreferences.NAME
-                    );
+                    SharedPreferences preferences;
+                    try {
+                        preferences = getRemotePreferences(
+                                com.zz.douyin.FilterPreferences.NAME
+                        );
+                    } catch (Throwable failed) {
+                        LogBook.w(
+                                "[LSPatch] remote preferences unavailable;"
+                                        + " tracker runs on defaults",
+                                failed
+                        );
+                        preferences = null;
+                    }
                     ImmersiveUi.configurePreferences(preferences);
                     FeedContentTracker.install(
                             this,
