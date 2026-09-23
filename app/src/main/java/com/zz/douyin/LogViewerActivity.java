@@ -85,32 +85,29 @@ public final class LogViewerActivity extends Activity {
         statusParams.topMargin = dp(12);
         root.addView(statusView, statusParams);
 
-        ScrollView topScroll = new ScrollView(this);
-        LinearLayout.LayoutParams topParams = new LinearLayout.LayoutParams(
+        TextView fileHeader = sectionTitle("日志文件");
+        LinearLayout.LayoutParams fileHeaderParams = matchWrap();
+        fileHeaderParams.topMargin = dp(12);
+        root.addView(fileHeader, fileHeaderParams);
+        ScrollView fileScroll = new ScrollView(this);
+        LinearLayout.LayoutParams fileParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        topParams.topMargin = dp(12);
-        root.addView(topScroll, topParams);
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.VERTICAL);
-        topScroll.addView(top, matchWrap());
-
-        top.addView(sectionTitle("日志文件"), matchWrap());
+        fileParams.topMargin = dp(8);
+        root.addView(fileScroll, fileParams);
         fileContainer = new LinearLayout(this);
         fileContainer.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams filesParams = matchWrap();
-        filesParams.topMargin = dp(8);
-        top.addView(fileContainer, filesParams);
+        fileScroll.addView(fileContainer, matchWrap());
 
         TextView levelHeader = sectionTitle("级别过滤");
         LinearLayout.LayoutParams levelHeaderParams = matchWrap();
         levelHeaderParams.topMargin = dp(16);
-        top.addView(levelHeader, levelHeaderParams);
+        root.addView(levelHeader, levelHeaderParams);
         LinearLayout levelRow = new LinearLayout(this);
         levelRow.setOrientation(LinearLayout.HORIZONTAL);
         levelRow.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams levelRowParams = matchWrap();
         levelRowParams.topMargin = dp(8);
-        top.addView(levelRow, levelRowParams);
+        root.addView(levelRow, levelRowParams);
         String[] labels = {"全部", "信息+", "警告+", "错误"};
         char[] levels = {'D', 'I', 'W', 'E'};
         for (int index = 0; index < labels.length; index++) {
@@ -136,7 +133,7 @@ public final class LogViewerActivity extends Activity {
         actionRow.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams actionParams = matchWrap();
         actionParams.topMargin = dp(12);
-        top.addView(actionRow, actionParams);
+        root.addView(actionRow, actionParams);
         Button refreshButton = smallButton("刷新");
         refreshButton.setOnClickListener(view -> reload());
         actionRow.addView(refreshButton, new LinearLayout.LayoutParams(
@@ -170,7 +167,7 @@ public final class LogViewerActivity extends Activity {
         permissionButton.setOnClickListener(view -> requestStoragePermission());
         LinearLayout.LayoutParams permissionParams = matchWrap();
         permissionParams.topMargin = dp(12);
-        top.addView(permissionButton, permissionParams);
+        root.addView(permissionButton, permissionParams);
 
         logScroll = new ScrollView(this);
         LinearLayout.LayoutParams logParams = new LinearLayout.LayoutParams(
