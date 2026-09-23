@@ -38,6 +38,7 @@ public final class MainActivity extends Activity
     private Switch skipLives;
     private Switch skipVideos;
     private Switch showDanmaku;
+    private Switch autoNext;
     private EditText keywordInput;
     private Button saveKeywords;
     private SharedPreferences preferences;
@@ -156,6 +157,10 @@ public final class MainActivity extends Activity
         blockDoubleTap = addSwitch(playbackCard, "禁用屏幕双击",
                 "拦截视频画面双击，保留单击暂停、滑动和侧边长按",
                 FilterPreferences.KEY_BLOCK_DOUBLE_TAP);
+        addDivider(playbackCard);
+        autoNext = addSwitch(playbackCard, "播放完成自动下一条",
+                "当前视频播完后自动上滑到下一条；关闭后停在末尾",
+                FilterPreferences.KEY_AUTO_NEXT);
         LinearLayout.LayoutParams playbackCardParams = matchWrap();
         playbackCardParams.topMargin = dp(10);
         root.addView(playbackCard, playbackCardParams);
@@ -266,6 +271,7 @@ public final class MainActivity extends Activity
         skipLives.setChecked(values.skipLives);
         skipVideos.setChecked(values.skipVideos);
         showDanmaku.setChecked(FilterPreferences.readShowDanmaku(preferences));
+        autoNext.setChecked(FilterPreferences.readAutoNext(preferences));
         keywordInput.setText(values.keywordText);
         keywordInput.setSelection(keywordInput.length());
         serviceStatus.setText(
@@ -352,6 +358,7 @@ public final class MainActivity extends Activity
         skipLives.setEnabled(enabled);
         skipVideos.setEnabled(enabled);
         showDanmaku.setEnabled(enabled);
+        autoNext.setEnabled(enabled);
         keywordInput.setEnabled(enabled);
         saveKeywords.setEnabled(enabled);
         saveKeywords.setAlpha(enabled ? 1f : 0.45f);

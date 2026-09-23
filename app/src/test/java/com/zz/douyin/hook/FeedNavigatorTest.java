@@ -1,6 +1,8 @@
 package com.zz.douyin.hook;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -51,6 +53,24 @@ public final class FeedNavigatorTest {
                 FeedNavigator.Reason.FILTER_KEYWORD,
                 FeedNavigator.reasonForFilter("video keyword: test aid=1 type=0")
         );
+    }
+
+    @Test
+    public void autoNextFiresOncePerAid() {
+        assertTrue(FeedNavigator.shouldFireAutoNext("a1", null, false));
+        assertTrue(FeedNavigator.shouldFireAutoNext("a1", "a1", false));
+        assertFalse(FeedNavigator.shouldFireAutoNext("a1", "a1", true));
+    }
+
+    @Test
+    public void autoNextRefiresAfterAidChanges() {
+        assertTrue(FeedNavigator.shouldFireAutoNext("a2", "a1", true));
+    }
+
+    @Test
+    public void autoNextFailsOpenWithoutAid() {
+        assertTrue(FeedNavigator.shouldFireAutoNext(null, "a1", true));
+        assertTrue(FeedNavigator.shouldFireAutoNext("", "a1", true));
     }
 
     @Test

@@ -53,6 +53,9 @@ final class ImmersiveUi {
     private static volatile boolean moduleEnabled = true;
     private static volatile boolean blockDoubleTap;
     private static volatile boolean immersiveEnabled = true;
+    private static volatile boolean autoNextEnabled = true;
+    private static String lastAutoNextAid;
+    private static boolean lastAutoNextFired;
     private static SharedPreferences immersivePreferences;
     private static final SharedPreferences.OnSharedPreferenceChangeListener
             PREFERENCE_LISTENER = (preferences, key) -> {
@@ -123,6 +126,7 @@ final class ImmersiveUi {
         moduleEnabled = enabled;
         blockDoubleTap = com.zz.douyin.FilterPreferences.readBlockDoubleTap(preferences);
         immersiveEnabled = com.zz.douyin.FilterPreferences.readImmersiveEnabled(preferences);
+        autoNextEnabled = com.zz.douyin.FilterPreferences.readAutoNext(preferences);
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
         MAIN.post(() -> {
             if (changed) {
@@ -443,13 +447,36 @@ final class ImmersiveUi {
         });
     }
 
+    private static String currentAid(View decor) {
+        try {
+            FeedContentTracker.Snapshot snapshot = FeedContentTracker.current(decor);
+            return snapshot == null ? null : snapshot.aid;
+        } catch (RuntimeException failed) {
+            LogBook.d("[AutoNext] aid lookup failed", failed);
+            return null;
+        }
+    }
+
     static void onPlaybackCompleted(FeedNavigator.Reason reason) {
         MAIN.post(() -> {
             if (!moduleEnabled) return;
+            if (reason == FeedNavigator.Reason.AUTO_PLAY_FINISHED && !autoNextEnabled) {
+                LogBook.d("[AutoNext] ignored: feature disabled");
+                return;
+            }
             Activity activity = activeActivity();
             View decor = activeDecor(activity);
             if (decor == null) {
                 return;
+            }
+            if (reason == FeedNavigator.Reason.AUTO_PLAY_FINISHED) {
+                String aid = currentAid(decor);
+                if (!FeedNavigator.shouldFireAutoNext(aid, lastAutoNextAid, lastAutoNextFired)) {
+                    LogBook.d("[AutoNext] ignored: already fired for aid=" + aid);
+                    return;
+                }
+                lastAutoNextAid = aid;
+                lastAutoNextFired = true;
             }
             FeedNavigator.moveToNext(decor, reason);
         });

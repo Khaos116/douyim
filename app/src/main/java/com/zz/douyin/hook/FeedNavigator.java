@@ -59,6 +59,16 @@ final class FeedNavigator {
         return Reason.FILTER_IMAGE;
     }
 
+    static boolean shouldFireAutoNext(String aid, String lastAid, boolean alreadyFired) {
+        if (aid == null || aid.isEmpty()) {
+            return true;
+        }
+        if (!aid.equals(lastAid)) {
+            return true;
+        }
+        return !alreadyFired;
+    }
+
     static boolean moveToNext(View decor, Reason reason) {
         if (!ImmersiveUi.isModuleEnabled()) {
             LogBook.d("[FeedNav] moveToNext ignored: module disabled");
