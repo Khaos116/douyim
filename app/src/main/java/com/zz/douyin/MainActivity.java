@@ -19,6 +19,9 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import io.github.libxposed.service.XposedService;
 
 public final class MainActivity extends Activity
@@ -57,13 +60,18 @@ public final class MainActivity extends Activity
     private EditText keywordInput;
     private Button saveKeywords;
     private SharedPreferences preferences;
+    private SharedPreferences localPreferences;
+    private boolean usingRemote;
+    private final Set<String> offlineDirty = new HashSet<>();
     private boolean loading = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        localPreferences = getSharedPreferences(
+                FilterPreferences.NAME, MODE_PRIVATE);
         setContentView(buildContent());
-        setControlsEnabled(false);
+        bindPreferences(null);
     }
 
     @Override
@@ -397,47 +405,39 @@ public final class MainActivity extends Activity
     private void bindPreferences(XposedService service) {
         loading = true;
         if (service == null) {
-            preferences = null;
-            serviceStatus.setText("未连接 LSPosed 服务，设置暂不可修改");
+            usingRemote = false;
+            preferences = localPreferences;
+            refreshControls();
+            serviceStatus.setText("未连接 LSPosed 服务，修改先存本机，连接后自动同步");
             serviceStatus.setTextColor(Color.rgb(255, 166, 77));
-            setControlsEnabled(false);
+            setControlsEnabled(true);
             loading = false;
             return;
         }
 
-        preferences = service.getRemotePreferences(FilterPreferences.NAME);
-        moduleEnabled.setChecked(FilterPreferences.readModuleEnabled(preferences));
-        immersiveEnabled.setChecked(FilterPreferences.readImmersiveEnabled(preferences));
-        blockDoubleTap.setChecked(FilterPreferences.readBlockDoubleTap(preferences));
-        FilterPreferences.Values values = FilterPreferences.read(preferences);
-        skipAds.setChecked(values.skipAds);
-        skipImages.setChecked(values.skipImages);
-        skipLives.setChecked(values.skipLives);
-        skipVideos.setChecked(values.skipVideos);
-        skipLongVideos.setChecked(values.skipLongVideos);
-        longThresholdInput.setText(
-                String.valueOf(values.longVideoThresholdMs / 1000L));
-        showDanmaku.setChecked(FilterPreferences.readShowDanmaku(preferences));
-        autoNext.setChecked(FilterPreferences.readAutoNext(preferences));
-        exactCounts.setChecked(FilterPreferences.readExactCounts(preferences));
-        publishTime.setChecked(FilterPreferences.readPublishTime(preferences));
-        publishLocation.setChecked(FilterPreferences.readPublishLocation(preferences));
-        customColors.setChecked(FilterPreferences.readCustomTextColors(preferences));
-        copyLink.setChecked(FilterPreferences.readCopyLink(preferences));
-        hidePublish.setChecked(FilterPreferences.readHidePublish(preferences));
-        hideTabsInput.setText(FilterPreferences.readHideTabs(preferences));
-        hideTabsInput.setSelection(hideTabsInput.length());
-        countColorInput.setText(
-                com.zz.douyin.hook.FeedUiStyle.toHex(
-                        FilterPreferences.readCountTextColor(preferences)));
-        timeColorInput.setText(
-                com.zz.douyin.hook.FeedUiStyle.toHex(
-                        FilterPreferences.readPublishTimeColor(preferences)));
-        locationColorInput.setText(
-                com.zz.douyin.hook.FeedUiStyle.toHex(
-                        FilterPreferences.readLocationTextColor(preferences)));
-        keywordInput.setText(values.keywordText);
-        keywordInput.setSelection(keywordInput.length());
+        SharedPreferences remote = null;
+        try {
+            remote = service.getRemotePreferences(FilterPreferences.NAME);
+        } catch (RuntimeException failed) {
+            remote = null;
+        }
+        if (remote != null && !offlineDirty.isEmpty()) {
+            pushOfflineEdits(remote);
+            Toast.makeText(this,
+                    "离线修改已同步（" + offlineDirty.size() + " 项）",
+                    Toast.LENGTH_SHORT).show();
+            offlineDirty.clear();
+        }
+        usingRemote = remote != null;
+        preferences = usingRemote ? remote : localPreferences;
+        refreshControls();
+        if (!usingRemote) {
+            serviceStatus.setText("服务异常，修改先存本机，恢复后自动同步");
+            serviceStatus.setTextColor(Color.rgb(255, 166, 77));
+            setControlsEnabled(true);
+            loading = false;
+            return;
+        }
         serviceStatus.setText(
                 "已连接 " + service.getFrameworkName()
                         + " · API " + service.getApiVersion()
@@ -445,6 +445,100 @@ public final class MainActivity extends Activity
         serviceStatus.setTextColor(Color.rgb(84, 214, 142));
         setControlsEnabled(true);
         loading = false;
+    }
+
+    private void pushOfflineEdits(SharedPreferences remote) {
+        SharedPreferences.Editor editor = remote.edit();
+        if (editor == null) {
+            return;
+        }
+        for (String key : offlineDirty) {
+            copyKey(localPreferences, editor, key);
+        }
+        editor.apply();
+    }
+
+    private void afterSave(String... keys) {
+        if (!usingRemote) {
+            for (String key : keys) {
+                offlineDirty.add(key);
+            }
+            return;
+        }
+        SharedPreferences.Editor mirror = localPreferences.edit();
+        if (mirror == null) {
+            return;
+        }
+        for (String key : keys) {
+            copyKey(preferences, mirror, key);
+        }
+        mirror.apply();
+    }
+
+    private static void copyKey(
+            SharedPreferences from,
+            SharedPreferences.Editor to,
+            String key
+    ) {
+        if (from == null || to == null || key == null || !from.contains(key)) {
+            return;
+        }
+        switch (key) {
+            case FilterPreferences.KEY_VIDEO_KEYWORDS:
+            case FilterPreferences.KEY_HIDE_TABS:
+                to.putString(key, from.getString(key, ""));
+                break;
+            case FilterPreferences.KEY_COUNT_TEXT_COLOR:
+            case FilterPreferences.KEY_PUBLISH_TIME_COLOR:
+            case FilterPreferences.KEY_LOCATION_TEXT_COLOR:
+                to.putInt(key, from.getInt(key, -1));
+                break;
+            case FilterPreferences.KEY_LONG_VIDEO_THRESHOLD_MS:
+                to.putLong(key, from.getLong(
+                        key,
+                        FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS
+                ));
+                break;
+            default:
+                to.putBoolean(key, from.getBoolean(key, false));
+                break;
+        }
+    }
+
+    private void refreshControls() {
+        SharedPreferences bound = preferences;
+        moduleEnabled.setChecked(FilterPreferences.readModuleEnabled(bound));
+        immersiveEnabled.setChecked(FilterPreferences.readImmersiveEnabled(bound));
+        blockDoubleTap.setChecked(FilterPreferences.readBlockDoubleTap(bound));
+        FilterPreferences.Values values = FilterPreferences.read(bound);
+        skipAds.setChecked(values.skipAds);
+        skipImages.setChecked(values.skipImages);
+        skipLives.setChecked(values.skipLives);
+        skipVideos.setChecked(values.skipVideos);
+        skipLongVideos.setChecked(values.skipLongVideos);
+        longThresholdInput.setText(
+                String.valueOf(values.longVideoThresholdMs / 1000L));
+        showDanmaku.setChecked(FilterPreferences.readShowDanmaku(bound));
+        autoNext.setChecked(FilterPreferences.readAutoNext(bound));
+        exactCounts.setChecked(FilterPreferences.readExactCounts(bound));
+        publishTime.setChecked(FilterPreferences.readPublishTime(bound));
+        publishLocation.setChecked(FilterPreferences.readPublishLocation(bound));
+        customColors.setChecked(FilterPreferences.readCustomTextColors(bound));
+        copyLink.setChecked(FilterPreferences.readCopyLink(bound));
+        hidePublish.setChecked(FilterPreferences.readHidePublish(bound));
+        hideTabsInput.setText(FilterPreferences.readHideTabs(bound));
+        hideTabsInput.setSelection(hideTabsInput.length());
+        countColorInput.setText(
+                com.zz.douyin.hook.FeedUiStyle.toHex(
+                        FilterPreferences.readCountTextColor(bound)));
+        timeColorInput.setText(
+                com.zz.douyin.hook.FeedUiStyle.toHex(
+                        FilterPreferences.readPublishTimeColor(bound)));
+        locationColorInput.setText(
+                com.zz.douyin.hook.FeedUiStyle.toHex(
+                        FilterPreferences.readLocationTextColor(bound)));
+        keywordInput.setText(values.keywordText);
+        keywordInput.setSelection(keywordInput.length());
     }
 
     private Switch addSwitch(
@@ -492,6 +586,7 @@ public final class MainActivity extends Activity
         SharedPreferences.Editor editor = current.edit();
         if (editor != null) {
             editor.putBoolean(key, value).apply();
+            afterSave(key);
         }
     }
 
@@ -518,7 +613,8 @@ public final class MainActivity extends Activity
         }
         editor.putLong(
                 FilterPreferences.KEY_LONG_VIDEO_THRESHOLD_MS, seconds * 1000L).apply();
-        Toast.makeText(this, "阈值已保存", Toast.LENGTH_SHORT).show();
+        afterSave(FilterPreferences.KEY_LONG_VIDEO_THRESHOLD_MS);
+        Toast.makeText(this, savedMessage("阈值已保存"), Toast.LENGTH_SHORT).show();
     }
 
     private void saveHideTabsSettings() {
@@ -536,7 +632,8 @@ public final class MainActivity extends Activity
                 FilterPreferences.KEY_HIDE_TABS,
                 hideTabsInput.getText().toString().trim()
         ).apply();
-        Toast.makeText(this, "TAB 关键词已保存", Toast.LENGTH_SHORT).show();
+        afterSave(FilterPreferences.KEY_HIDE_TABS);
+        Toast.makeText(this, savedMessage("TAB 关键词已保存"), Toast.LENGTH_SHORT).show();
     }
 
     private void saveKeywordSettings() {
@@ -554,7 +651,8 @@ public final class MainActivity extends Activity
                 FilterPreferences.KEY_VIDEO_KEYWORDS,
                 keywordInput.getText().toString().trim()
         ).apply();
-        Toast.makeText(this, "关键词已保存", Toast.LENGTH_SHORT).show();
+        afterSave(FilterPreferences.KEY_VIDEO_KEYWORDS);
+        Toast.makeText(this, savedMessage("关键词已保存"), Toast.LENGTH_SHORT).show();
     }
 
     private void setControlsEnabled(boolean enabled) {
@@ -645,7 +743,15 @@ public final class MainActivity extends Activity
                 com.zz.douyin.hook.FeedUiStyle.parseColor(
                         locationHex, FilterPreferences.DEFAULT_LOCATION_TEXT_COLOR));
         editor.apply();
-        Toast.makeText(this, "颜色已保存", Toast.LENGTH_SHORT).show();
+        afterSave(
+                FilterPreferences.KEY_COUNT_TEXT_COLOR,
+                FilterPreferences.KEY_PUBLISH_TIME_COLOR,
+                FilterPreferences.KEY_LOCATION_TEXT_COLOR);
+        Toast.makeText(this, savedMessage("颜色已保存"), Toast.LENGTH_SHORT).show();
+    }
+
+    private String savedMessage(String saved) {
+        return usingRemote ? saved : saved + "（连接后同步）";
     }
 
     private LinearLayout card() {
