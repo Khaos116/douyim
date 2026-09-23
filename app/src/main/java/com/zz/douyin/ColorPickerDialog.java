@@ -67,6 +67,20 @@ public final class ColorPickerDialog {
         wheelParams.topMargin = Math.round(12f * density);
         root.addView(wheel, wheelParams);
 
+        TextView valueLabel = new TextView(activity);
+        valueLabel.setText("明度");
+        valueLabel.setTextSize(14);
+        valueLabel.setTextColor(TEXT_PRIMARY);
+        LinearLayout.LayoutParams valueLabelParams = matchWrap();
+        valueLabelParams.topMargin = Math.round(14f * density);
+        root.addView(valueLabel, valueLabelParams);
+
+        SeekBar valueBar = new SeekBar(activity);
+        valueBar.setMax(100);
+        LinearLayout.LayoutParams valueParams = matchWrap();
+        valueParams.topMargin = Math.round(4f * density);
+        root.addView(valueBar, valueParams);
+
         TextView alphaLabel = new TextView(activity);
         alphaLabel.setText("不透明度");
         alphaLabel.setTextSize(14);
@@ -127,6 +141,11 @@ public final class ColorPickerDialog {
 
         int[] opaque = {initialColor | 0xFF000000};
         wheel.setColor(opaque[0]);
+        float[] initialHsv = ColorMath.rgbToHsv(
+                (opaque[0] >> 16) & 0xFF,
+                (opaque[0] >> 8) & 0xFF,
+                opaque[0] & 0xFF);
+        valueBar.setProgress(Math.round(initialHsv[2] * 100f));
         alphaBar.setProgress((initialColor >>> 24) & 0xFF);
         Runnable refresh = () -> {
             int picked = ((alphaBar.getProgress() & 0xFF) << 24) | (opaque[0] & 0xFFFFFF);
@@ -140,6 +159,20 @@ public final class ColorPickerDialog {
         wheel.setOnColorChangedListener(color -> {
             opaque[0] = color;
             refresh.run();
+        });
+        valueBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                wheel.setValue(progress / 100f);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar bar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar bar) {
+            }
         });
         alphaBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
