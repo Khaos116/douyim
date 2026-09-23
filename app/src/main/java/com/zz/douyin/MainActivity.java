@@ -165,7 +165,8 @@ public final class MainActivity extends Activity
                 "跳过时长超过下方阈值的普通视频；取不到时长时放行",
                 FilterPreferences.KEY_SKIP_LONG_VIDEOS
         );
-        longThresholdInput = addLabeledField(typeCard, "长视频阈值（秒）");
+        longThresholdInput = addLabeledField(
+                typeCard, "长视频阈值（秒）", "例如：180", InputType.TYPE_CLASS_NUMBER);
         saveLongThreshold = new Button(this);
         saveLongThreshold.setText("保存阈值");
         saveLongThreshold.setTextColor(Color.WHITE);
@@ -250,9 +251,12 @@ public final class MainActivity extends Activity
         );
         colorHint.setLineSpacing(0, 1.25f);
         colorCard.addView(colorHint, matchWrap());
-        countColorInput = addLabeledField(colorCard, "精确数字颜色");
-        timeColorInput = addLabeledField(colorCard, "发布时间颜色");
-        locationColorInput = addLabeledField(colorCard, "IP属地/地点颜色");
+        countColorInput = addLabeledField(
+                colorCard, "精确数字颜色", "#FFFFFF", InputType.TYPE_CLASS_TEXT);
+        timeColorInput = addLabeledField(
+                colorCard, "发布时间颜色", "#FFFFFF", InputType.TYPE_CLASS_TEXT);
+        locationColorInput = addLabeledField(
+                colorCard, "IP属地/地点颜色", "#FFFFFF", InputType.TYPE_CLASS_TEXT);
 
         saveColors = new Button(this);
         saveColors.setText("保存颜色");
@@ -702,7 +706,12 @@ public final class MainActivity extends Activity
         saveKeywords.setAlpha(enabled ? 1f : 0.45f);
     }
 
-    private EditText addLabeledField(LinearLayout parent, String label) {
+    private EditText addLabeledField(
+            LinearLayout parent,
+            String label,
+            String hint,
+            int inputType
+    ) {
         TextView labelView = text(label, 14, TEXT_PRIMARY);
         LinearLayout.LayoutParams labelParams = matchWrap();
         labelParams.topMargin = dp(14);
@@ -711,9 +720,9 @@ public final class MainActivity extends Activity
         input.setTextColor(TEXT_PRIMARY);
         input.setHintTextColor(Color.rgb(112, 114, 123));
         input.setTextSize(16);
-        input.setHint("#FFFFFF");
+        input.setHint(hint);
         input.setSingleLine(true);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setInputType(inputType);
         GradientDrawable inputBackground = rounded(Color.rgb(38, 39, 45), 12);
         inputBackground.setStroke(dp(1), Color.rgb(58, 60, 68));
         input.setBackground(inputBackground);
