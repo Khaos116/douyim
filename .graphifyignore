@@ -1,0 +1,6 @@
+# 本地反编译参考（第三方，未进 Git），不进知识图谱。
+# graphify 用；删掉本文件即恢复索引。
+docs/my/dyhelper-src*/
+docs/my/DYHelper*.apk
+# 启动图标等二进制图片不进图谱（无语义增益，12 个文件）。
+*.png

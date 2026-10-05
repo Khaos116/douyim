@@ -1,0 +1,4 @@
+# 本地反编译参考（第三方，未进 Git），不进代码索引。
+# codegraph/codebase-memory 用；删掉本文件即恢复索引。
+docs/my/dyhelper-src*/
+docs/my/DYHelper*.apk
