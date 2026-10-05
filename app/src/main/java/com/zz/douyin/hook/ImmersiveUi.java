@@ -111,7 +111,7 @@ final class ImmersiveUi {
     private static WeakReference<View> lastForceLogged =
             new WeakReference<>(null);
     private static String lastForceLoggedAid;
-    private static String lastLiveTabKeepAid;
+    private static String lastLiveTabCheckAid;
     private static String lastUserPausedKeepAid;
     private static long lastHandledTouchDownTime;
     private static long contentCheckNotBefore;
@@ -1794,13 +1794,22 @@ final class ImmersiveUi {
             String reason = model.shouldFilter()
                     ? model.filterReason
                     : null;
-            if (reason != null && model.live && TabDetector.isLiveTab(decor)) {
-                if (!model.aid.equals(lastLiveTabKeepAid)) {
-                    lastLiveTabKeepAid = model.aid;
-                    LogBook.i("[Filter] keep live: live tab active aid="
-                            + model.aid);
+            if (model.live && FeedNavigator.reasonForFilter(reason)
+                    == FeedNavigator.Reason.FILTER_LIVE) {
+                boolean liveTab = TabDetector.isLiveTab(decor);
+                if (!model.aid.equals(lastLiveTabCheckAid)) {
+                    lastLiveTabCheckAid = model.aid;
+                    Activity liveActivity = activeActivity();
+                    LogBook.i("[Filter] live check aid=" + model.aid
+                            + " liveTab=" + liveTab
+                            + " activity=" + (liveActivity == null
+                                    ? "?"
+                                    : liveActivity.getClass().getName())
+                            + " " + TabDetector.diagnoseLiveTab(decor));
                 }
-                reason = null;
+                if (liveTab) {
+                    reason = null;
+                }
             }
             if (FeedNavigator.shouldKeepForUserPause(
                     reason, PlaybackState.isUserPaused())) {
