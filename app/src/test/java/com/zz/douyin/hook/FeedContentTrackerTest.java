@@ -516,6 +516,22 @@ public final class FeedContentTrackerTest {
         assertEquals(372_000L, snapshot.durationMs);
     }
 
+    @Test
+    public void photoFlagMirrorsFilterInputs() throws Exception {
+        assertTrue(snapshot(videoAweme(2)).isPhoto());
+        assertTrue(snapshot(videoAweme(0x44)).isPhoto());
+
+        FakeAweme slides = videoAweme(0);
+        slides.isSlides = true;
+        assertTrue(snapshot(slides).isPhoto());
+
+        FakeAweme withImages = videoAweme(0);
+        withImages.imageInfos = List.of(new Object());
+        assertTrue(snapshot(withImages).isPhoto());
+
+        assertFalse(snapshot(videoAweme(0)).isPhoto());
+    }
+
     private static FakeAweme videoAweme(int awemeType) {
         FakeAweme aweme = new FakeAweme();
         aweme.aid = "test-" + awemeType;

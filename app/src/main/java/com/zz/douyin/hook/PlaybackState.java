@@ -20,6 +20,7 @@ final class PlaybackState {
     private static volatile WeakReference<Object> userPausedEngine =
             new WeakReference<>(null);
     private static volatile String userPausedAid;
+    private static volatile boolean userPauseNeedsEngine = true;
     private static volatile long expectedVideoSwitchUntil;
     private static volatile long autoSwitchUntil;
     private static volatile WeakReference<Object> engine = new WeakReference<>(null);
@@ -32,8 +33,9 @@ final class PlaybackState {
     private static volatile int lastResolvedState = Integer.MIN_VALUE;
     private static volatile long pausedAt;
     private static volatile long lastPauseSignalAt;
-    private static volatile WeakReference<Object> lastPauseSignalEngine =
+    private static volatile WeakReference<Object> pauseIntentEngine =
             new WeakReference<>(null);
+    private static volatile boolean pauseIntentCancelled;
 
     private static volatile Object trackedPlayer;
     private static volatile long trackedDuration;
@@ -62,6 +64,7 @@ final class PlaybackState {
     ) {
         long now = SystemClock.uptimeMillis();
         if (player != null) {
+            recordPauseSignal(player, false, now);
             // Keep a playing candidate even when a paused-feed transition has
             // not opened its acceptance window yet. The visible aid check can
             // then recover the correct active engine after the page changes.
@@ -107,10 +110,7 @@ final class PlaybackState {
             }
         }
         if (clearUserPause && userPaused) {
-            userPaused = false;
-            userPausedAt = 0L;
-            userPausedEngine.clear();
-            userPausedAid = null;
+            resetUserPause();
             clearPendingSwitchPlayer();
             expectedVideoSwitchUntil = 0L;
             LogBook.i(
@@ -128,7 +128,9 @@ final class PlaybackState {
         ImmersiveUi.onPlaybackChanged(true);
     }
 
-    static synchronized void paused(Object player) {
+    static synchronized void paused(Object player, boolean pauseSignal) {
+        long now = SystemClock.uptimeMillis();
+        recordPauseSignal(player, pauseSignal, now);
         Object current = engine.get();
         if (player != null && current != null && player != current) {
             LogBook.d("ignored pause from stale player "
@@ -138,11 +140,9 @@ final class PlaybackState {
         if (player != null && current == null) {
             engine = new WeakReference<>(player);
         }
-        lastPauseSignalAt = SystemClock.uptimeMillis();
-        lastPauseSignalEngine = new WeakReference<>(player);
         playing = false;
         if (pausedAt == 0L) {
-            pausedAt = lastPauseSignalAt;
+            pausedAt = now;
         }
         generation++;
         LogBook.i("playback=paused");
@@ -223,38 +223,100 @@ final class PlaybackState {
         return playbackState(candidate);
     }
 
+    static synchronized void beginUserPauseIntent(Object expectedEngine) {
+        pauseIntentEngine = new WeakReference<>(expectedEngine);
+        lastPauseSignalAt = 0L;
+        pauseIntentCancelled = false;
+    }
+
+    static synchronized void recordPauseSignal(Object player, boolean pauseSignal, long now) {
+        // Only the engine captured at ACTION_DOWN can corroborate this tap.
+        if (player != null && player == pauseIntentEngine.get()) {
+            lastPauseSignalAt = pauseSignal ? now : 0L;
+            pauseIntentCancelled = !pauseSignal;
+        }
+    }
+
+    static synchronized boolean hasUserPauseSignal(Object expectedEngine, long intentAt) {
+        return expectedEngine != null
+                && expectedEngine == pauseIntentEngine.get()
+                && lastPauseSignalAt > 0L
+                && lastPauseSignalAt >= intentAt;
+    }
+
+    static synchronized boolean confirmPhotoPaused(String tappedAid, String visibleAid) {
+        if (!knownAid(tappedAid) || !tappedAid.equals(visibleAid)) {
+            return false;
+        }
+        setUserPause(null, visibleAid, false);
+        LogBook.i("[Playback] photo held by user");
+        return true;
+    }
+
     static synchronized boolean confirmUserPaused(
             Object expectedEngine,
             long uptimeMillis,
             int initialState,
             String aid
     ) {
-        if (expectedEngine == null) {
+        if (expectedEngine == null
+                || (expectedEngine == pauseIntentEngine.get() && pauseIntentCancelled)) {
             return false;
         }
-        boolean matchingCallback =
-                lastPauseSignalEngine.get() == expectedEngine
-                        && lastPauseSignalAt >= uptimeMillis;
-        boolean confirmed =
-                engine.get() == expectedEngine
-                && (matchingCallback
-                || (initialState == 1
-                && playbackState(expectedEngine) == 2));
-        if (!confirmed) {
+        boolean matchingCallback = hasUserPauseSignal(expectedEngine, uptimeMillis);
+        int currentState = playbackState(expectedEngine);
+        if (!isPauseCorroborated(
+                matchingCallback,
+                engine.get() == expectedEngine,
+                initialState,
+                currentState)) {
+            LogBook.d("pause unconfirmed: adopted="
+                    + (engine.get() == expectedEngine)
+                    + " callback=" + matchingCallback
+                    + " initial=" + initialState
+                    + " now=" + currentState);
             return false;
         }
+        setUserPause(expectedEngine, aid, true);
+        LogBook.i("playback=user-paused");
+        return true;
+    }
+
+    static boolean isPauseCorroborated(
+            boolean matchingCallback,
+            boolean adoptedIsExpected,
+            int initialState,
+            int currentState) {
+        // A pause callback for the tapped engine is strong on its own (the
+        // adopted engine may have rotated since ACTION_DOWN); the weaker
+        // was-playing-now-paused read still requires engine identity.
+        return (matchingCallback && (currentState == 2 || currentState == -1))
+                || (adoptedIsExpected && initialState == 1 && currentState == 2);
+    }
+
+    private static void setUserPause(Object pauseEngine, String aid, boolean needsEngine) {
         userPaused = true;
         userPausedAt = SystemClock.uptimeMillis();
-        userPausedEngine = new WeakReference<>(expectedEngine);
+        userPausedEngine = new WeakReference<>(pauseEngine);
         userPausedAid = knownAid(aid) ? aid : null;
+        userPauseNeedsEngine = needsEngine;
+        if (needsEngine) {
+            engine = new WeakReference<>(pauseEngine);
+        }
         clearPendingSwitchPlayer();
         expectedVideoSwitchUntil = 0L;
         autoSwitchUntil = 0L;
         playing = false;
         pausedAt = 0L;
         generation++;
-        LogBook.i("playback=user-paused");
-        return true;
+    }
+
+    private static void resetUserPause() {
+        userPaused = false;
+        userPausedAt = 0L;
+        userPausedEngine.clear();
+        userPausedAid = null;
+        userPauseNeedsEngine = true;
     }
 
     static synchronized boolean shouldKeepUiHidden() {
@@ -262,13 +324,10 @@ final class PlaybackState {
             Object pausedPlayer = userPausedEngine.get();
             long pauseAge = SystemClock.uptimeMillis() - userPausedAt;
             if (pausedPlayer == null) {
-                if (pauseAge < 1_500L) {
+                if (pauseAge < 1_500L || !userPauseNeedsEngine) {
                     return false;
                 }
-                userPaused = false;
-                userPausedAt = 0L;
-                userPausedEngine.clear();
-                userPausedAid = null;
+                resetUserPause();
                 clearPendingSwitchPlayer();
                 playing = true;
                 pausedAt = 0L;
@@ -277,10 +336,7 @@ final class PlaybackState {
             } else if (pauseAge < 600L || playbackState(pausedPlayer) != 1) {
                 return false;
             } else {
-                userPaused = false;
-                userPausedAt = 0L;
-                userPausedEngine.clear();
-                userPausedAid = null;
+                resetUserPause();
                 clearPendingSwitchPlayer();
                 playing = true;
                 pausedAt = 0L;
@@ -444,8 +500,15 @@ final class PlaybackState {
     }
 
     static synchronized boolean confirmUserPlaying(Object expectedEngine) {
-        if (!userPaused
-                || !isConfirmedUserResume(
+        if (!userPaused) {
+            return false;
+        }
+        if (!userPauseNeedsEngine) {
+            // Engineless hold (photo): the tap itself toggles the hold off.
+            userPlaying();
+            return true;
+        }
+        if (!isConfirmedUserResume(
                 expectedEngine,
                 userPausedEngine.get(),
                 engine.get(),
@@ -471,10 +534,7 @@ final class PlaybackState {
     }
 
     static synchronized void userPlaying() {
-        userPaused = false;
-        userPausedAt = 0L;
-        userPausedEngine.clear();
-        userPausedAid = null;
+        resetUserPause();
         clearPendingSwitchPlayer();
         expectedVideoSwitchUntil = 0L;
         markPlaying(null, false, true);
@@ -482,10 +542,8 @@ final class PlaybackState {
     }
 
     static synchronized void clearModuleIntents() {
-        userPaused = false;
-        userPausedAt = 0L;
-        userPausedEngine.clear();
-        userPausedAid = null;
+        beginUserPauseIntent(null);
+        resetUserPause();
         clearPendingSwitchPlayer();
         expectedVideoSwitchUntil = 0L;
         consumePlaybackError();
@@ -498,10 +556,7 @@ final class PlaybackState {
                 || !isDifferentKnownContent(pausedAid, visibleAid)) {
             return false;
         }
-        userPaused = false;
-        userPausedAt = 0L;
-        userPausedEngine.clear();
-        userPausedAid = null;
+        resetUserPause();
         clearPendingSwitchPlayer();
         expectedVideoSwitchUntil = 0L;
         markPlaying(null, false, true);

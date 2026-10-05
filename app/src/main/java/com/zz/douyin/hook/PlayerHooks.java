@@ -79,6 +79,8 @@ final class PlayerHooks {
     }
 
     private static void hookState(DouyinModule module, Method method, boolean playing) {
+        boolean pauseSignal = method.getName()
+                .toLowerCase(java.util.Locale.ROOT).startsWith("pause");
         module.hook(method)
                 .setId("douyin-player-state-" + method.toGenericString())
                 .setExceptionMode(DouyinModule.ExceptionMode.PROTECTIVE)
@@ -87,7 +89,7 @@ final class PlayerHooks {
                     if (playing) {
                         PlaybackState.playing(chain.getThisObject());
                     } else {
-                        PlaybackState.paused(chain.getThisObject());
+                        PlaybackState.paused(chain.getThisObject(), pauseSignal);
                     }
                     return result;
                 });
@@ -186,7 +188,7 @@ final class PlayerHooks {
                         if (owner != null && state == 1) {
                             PlaybackState.playingFromCallback(owner);
                         } else if (owner != null && state == 2) {
-                            PlaybackState.paused(owner);
+                            PlaybackState.paused(owner, true);
                         } else if (owner != null && state == 3) {
                             PlaybackState.error(owner);
                         }

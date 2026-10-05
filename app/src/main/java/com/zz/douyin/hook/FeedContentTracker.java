@@ -237,14 +237,8 @@ public final class FeedContentTracker {
         String awemeClass = AwemeAccessor.simpleName(aweme);
         String authorClass = AwemeAccessor.simpleName(model.author());
         boolean poiFound = model.poi() != null;
-        boolean photo =
-                hostImage
-                        || hostMultiImage
-                        || slides
-                        || awemeType == 2
-                        || awemeType == 0x44
-                        || imageCount > 0
-                        || imageInfoCount > 0;
+        boolean photo = Snapshot.isPhotoModel(
+                hostImage, hostMultiImage, slides, awemeType, imageCount, imageInfoCount);
         boolean advertisement = ad || rawAd != null;
         FilterPreferences.Values activeSettings =
                 settings == null ? FilterPreferences.defaults() : settings;
@@ -417,6 +411,32 @@ public final class FeedContentTracker {
 
         boolean shouldFilter() {
             return filterReason != null;
+        }
+
+        static boolean isPhotoModel(
+                boolean hostImage,
+                boolean hostMultiImage,
+                boolean slides,
+                int awemeType,
+                int imageCount,
+                int imageInfoCount) {
+            return hostImage
+                    || hostMultiImage
+                    || slides
+                    || awemeType == 2
+                    || awemeType == 0x44
+                    || imageCount > 0
+                    || imageInfoCount > 0;
+        }
+
+        boolean isPhoto() {
+            return isPhotoModel(
+                    hostImage,
+                    hostMultiImage,
+                    slides,
+                    awemeType,
+                    imageCount,
+                    imageInfoCount);
         }
 
         boolean hasDownloadUrl() {

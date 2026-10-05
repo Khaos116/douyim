@@ -288,6 +288,7 @@ final class ImmersiveUi {
                     : touchDownObservedAid;
             touchDownEngine = PlaybackState.engine();
             touchDownEngineState = PlaybackState.engineState(touchDownEngine);
+            PlaybackState.beginUserPauseIntent(touchDownEngine);
             return;
         }
         if (action == MotionEvent.ACTION_CANCEL) {
@@ -408,11 +409,17 @@ final class ImmersiveUi {
             }
             FeedContentTracker.Snapshot currentModel =
                     FeedContentTracker.current(decor);
+            if (currentModel != null && PlaybackState.isDifferentKnownContent(
+                    pauseIntentAid, currentModel.aid)) {
+                LogBook.d("[Playback] ignored pause tap after content changed");
+                return;
+            }
             String confirmedPauseAid = currentModel == null
                     ? pauseIntentAid
                     : currentModel.aid;
-            boolean confirmedPause =
-                    PlaybackState.confirmUserPaused(
+            boolean confirmedPause = currentModel != null && currentModel.isPhoto()
+                    ? PlaybackState.confirmPhotoPaused(pauseIntentAid, currentModel.aid)
+                    : PlaybackState.confirmUserPaused(
                             pauseIntentEngine,
                             pauseIntentAt,
                             pauseIntentInitialState,

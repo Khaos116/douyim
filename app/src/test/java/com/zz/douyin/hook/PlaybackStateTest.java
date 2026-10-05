@@ -118,4 +118,73 @@ public final class PlaybackStateTest {
                 2_001L
         ));
     }
+
+    @Test
+    public void pauseCallbackCorroboratesWithoutAdoptedIdentity() {
+        assertTrue(PlaybackState.isPauseCorroborated(true, false, 0, -1));
+        assertTrue(PlaybackState.isPauseCorroborated(true, true, 1, 2));
+    }
+
+    @Test
+    public void stateReadCorroboratesOnlyWithIdentityAndTransition() {
+        assertTrue(PlaybackState.isPauseCorroborated(false, true, 1, 2));
+        assertFalse(PlaybackState.isPauseCorroborated(false, false, 1, 2));
+        assertFalse(PlaybackState.isPauseCorroborated(false, true, 1, 1));
+        assertFalse(PlaybackState.isPauseCorroborated(false, true, 0, 2));
+        assertFalse(PlaybackState.isPauseCorroborated(false, false, 0, -1));
+    }
+
+    @Test
+    public void pauseSignalCannotConfirmPlayingStoppedOrFailedEngine() {
+        assertFalse(PlaybackState.isPauseCorroborated(true, false, 1, 1));
+        assertFalse(PlaybackState.isPauseCorroborated(true, false, 1, 0));
+        assertFalse(PlaybackState.isPauseCorroborated(true, false, 1, 3));
+        assertFalse(PlaybackState.isPauseCorroborated(true, false, 1, 4));
+    }
+
+    @Test
+    public void missingEngineDoesNotCreateUserPause() {
+        assertFalse(PlaybackState.confirmUserPaused(null, 100L, 1, "video-aid"));
+    }
+
+    @Test
+    public void unrelatedPlayersCannotOverwriteTappedEngineSignal() {
+        Object tapped = new Object();
+        Object stale = new Object();
+        PlaybackState.beginUserPauseIntent(tapped);
+        PlaybackState.recordPauseSignal(tapped, true, 200L);
+        PlaybackState.recordPauseSignal(stale, true, 210L);
+        PlaybackState.recordPauseSignal(stale, false, 220L);
+        assertTrue(PlaybackState.hasUserPauseSignal(tapped, 100L));
+        assertFalse(PlaybackState.hasUserPauseSignal(stale, 100L));
+    }
+
+    @Test
+    public void stopReleaseAndResumeInvalidateTappedEngineSignal() {
+        Object tapped = new Object();
+        PlaybackState.beginUserPauseIntent(tapped);
+        PlaybackState.recordPauseSignal(tapped, false, 200L);
+        assertFalse(PlaybackState.hasUserPauseSignal(tapped, 100L));
+        PlaybackState.recordPauseSignal(tapped, true, 210L);
+        PlaybackState.recordPauseSignal(tapped, false, 220L);
+        assertFalse(PlaybackState.hasUserPauseSignal(tapped, 100L));
+    }
+
+    @Test
+    public void newTapCannotReusePreviousPauseSignal() {
+        Object tapped = new Object();
+        PlaybackState.beginUserPauseIntent(tapped);
+        PlaybackState.recordPauseSignal(tapped, true, 200L);
+        assertFalse(PlaybackState.hasUserPauseSignal(tapped, 201L));
+        PlaybackState.beginUserPauseIntent(tapped);
+        assertFalse(PlaybackState.hasUserPauseSignal(tapped, 100L));
+    }
+
+    @Test
+    public void photoHoldRejectsUnknownOrChangedContent() {
+        assertFalse(PlaybackState.confirmPhotoPaused(null, "photo-aid"));
+        assertFalse(PlaybackState.confirmPhotoPaused("unknown", "unknown"));
+        assertFalse(PlaybackState.confirmPhotoPaused("", ""));
+        assertFalse(PlaybackState.confirmPhotoPaused("photo-aid", "next-aid"));
+    }
 }
