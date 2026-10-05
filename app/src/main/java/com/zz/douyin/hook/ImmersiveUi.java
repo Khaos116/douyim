@@ -748,6 +748,12 @@ final class ImmersiveUi {
             return;
         }
 
+        FeedContentTracker.Snapshot model = FeedContentTracker.current(decor);
+        if (model == null || model.live) {
+            removeDownloadButton();
+            return;
+        }
+
         TextView current = downloadButton.get();
         if (current != null && current.getParent() == container) {
             current.setVisibility(View.VISIBLE);
@@ -784,6 +790,10 @@ final class ImmersiveUi {
             View currentDecor = activeDecor(currentActivity);
             FeedContentTracker.Snapshot snapshot =
                     FeedContentTracker.current(currentDecor);
+            if (snapshot != null && snapshot.live) {
+                removeDownloadButton();
+                return;
+            }
             VideoDownloader.chooseDownload(currentActivity, snapshot);
         });
 
