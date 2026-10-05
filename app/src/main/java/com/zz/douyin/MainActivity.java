@@ -244,7 +244,7 @@ public final class MainActivity extends Activity
                 FilterPreferences.KEY_CUSTOM_TEXT_COLORS);
         addDivider(playbackCard);
         copyLink = addSwitch(playbackCard, "复制链接按钮",
-                "暂停时在下载按钮旁显示，一键复制当前视频无水印直链",
+                "暂停时在下载按钮旁显示，一键复制当前视频分享链接",
                 FilterPreferences.KEY_COPY_LINK);
         addDivider(playbackCard);
         showProgress = addSwitch(playbackCard, "常显播放进度条",

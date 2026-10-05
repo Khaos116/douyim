@@ -94,10 +94,24 @@ final class VideoDownloader {
     }
 
     static String resolveCopyLink(FeedContentTracker.Snapshot snapshot) {
-        if (snapshot == null || snapshot.playUrls.isEmpty()) {
+        if (snapshot == null) {
+            return null;
+        }
+        String share = shareUrl(snapshot.aid);
+        if (share != null) {
+            return share;
+        }
+        if (snapshot.playUrls.isEmpty()) {
             return null;
         }
         return snapshot.playUrls.get(0).url;
+    }
+
+    static String shareUrl(String aid) {
+        if (aid == null || aid.isEmpty() || "unknown".equals(aid)) {
+            return null;
+        }
+        return "https://www.douyin.com/video/" + aid;
     }
 
     static void dismissChooser() {
