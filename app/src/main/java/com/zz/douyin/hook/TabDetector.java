@@ -27,6 +27,18 @@ final class TabDetector {
         return text != null && "直播".equals(text.toString().trim());
     }
 
+    /** Null means the description does not identify the live tab. */
+    static Boolean liveTabDescriptionSelection(CharSequence description) {
+        if (description == null) return null;
+        boolean live = false;
+        boolean selected = false;
+        for (String token : description.toString().split("[,，]")) {
+            live |= "直播".equals(token.trim());
+            selected |= "已选中".equals(token.trim());
+        }
+        return live ? selected : null;
+    }
+
     /**
      * Pure match rule, JVM-testable. The host may hide its own tab strip
      * while playing, so visibility is not required — but the view must be
@@ -63,6 +75,7 @@ final class TabDetector {
                     .append(" shown=").append(candidate.shown)
                     .append(" sel=").append(candidate.selfSelected)
                     .append(" anc=").append(candidate.ancestorSelected)
+                    .append(" desc=").append(candidate.descriptionSelected)
                     .append(']');
         }
         return out.toString();
@@ -84,14 +97,15 @@ final class TabDetector {
             node.getLocationOnScreen(location);
             boolean selfSelected = node.isSelected();
             boolean ancestorSelected = hasSelectedAncestor(node, decorWidth, decorHeight);
+            Boolean descriptionSelected = describedSelection(node, decorWidth, decorHeight);
             boolean selected = matchesCandidate(
                     location[1],
                     decorHeight,
                     node.getWidth(),
                     node.getHeight(),
                     isAttached(node),
-                    selfSelected,
-                    ancestorSelected);
+                    descriptionSelected == null ? selfSelected : descriptionSelected,
+                    descriptionSelected == null && ancestorSelected);
             found.add(new Candidate(
                     location[1],
                     node.getWidth(),
@@ -99,6 +113,7 @@ final class TabDetector {
                     node.isShown(),
                     selfSelected,
                     ancestorSelected,
+                    descriptionSelected,
                     selected));
         }
         if (node instanceof ViewGroup group) {
@@ -116,6 +131,19 @@ final class TabDetector {
 
     static boolean isTabSelectionOwner(int width, int height, int decorWidth, int decorHeight) {
         return FeedUiHider.isTabItemSize(width, height, decorWidth, decorHeight);
+    }
+
+    private static Boolean describedSelection(View node, int decorWidth, int decorHeight) {
+        View current = node;
+        for (int level = 0; level < MAX_ANCESTOR_LEVELS; level++) {
+            if (!isTabSelectionOwner(
+                    current.getWidth(), current.getHeight(), decorWidth, decorHeight)) break;
+            Boolean selected = liveTabDescriptionSelection(current.getContentDescription());
+            if (selected != null) return selected;
+            if (!(current.getParent() instanceof View parent)) break;
+            current = parent;
+        }
+        return null;
     }
 
     private static boolean hasSelectedAncestor(View node, int decorWidth, int decorHeight) {
@@ -145,6 +173,7 @@ final class TabDetector {
         final boolean shown;
         final boolean selfSelected;
         final boolean ancestorSelected;
+        final Boolean descriptionSelected;
         final boolean selected;
 
         Candidate(
@@ -154,6 +183,7 @@ final class TabDetector {
                 boolean shown,
                 boolean selfSelected,
                 boolean ancestorSelected,
+                Boolean descriptionSelected,
                 boolean selected) {
             this.top = top;
             this.width = width;
@@ -161,6 +191,7 @@ final class TabDetector {
             this.shown = shown;
             this.selfSelected = selfSelected;
             this.ancestorSelected = ancestorSelected;
+            this.descriptionSelected = descriptionSelected;
             this.selected = selected;
         }
     }

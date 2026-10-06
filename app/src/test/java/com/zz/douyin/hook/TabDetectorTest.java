@@ -1,6 +1,7 @@
 package com.zz.douyin.hook;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -52,5 +53,21 @@ public final class TabDetectorTest {
         assertFalse(TabDetector.isTabSelectionOwner(1080, 120, 1080, 2000));
         assertFalse(TabDetector.isTabSelectionOwner(1080, 2000, 1080, 2000));
         assertFalse(TabDetector.isTabSelectionOwner(0, 0, 1080, 2000));
+    }
+
+    @Test
+    public void recognizesTheHostsSelectedLiveTabDescription() {
+        assertEquals(Boolean.TRUE, TabDetector.liveTabDescriptionSelection("已选中，直播，按钮"));
+        assertEquals(Boolean.TRUE, TabDetector.liveTabDescriptionSelection(" 已选中, 直播, 按钮 "));
+    }
+
+    @Test
+    public void descriptionRequiresBothExactLiveAndSelectedTokens() {
+        assertEquals(null, TabDetector.liveTabDescriptionSelection(null));
+        assertEquals(Boolean.FALSE, TabDetector.liveTabDescriptionSelection("直播，按钮"));
+        assertEquals(Boolean.FALSE, TabDetector.liveTabDescriptionSelection("未选中，直播，按钮"));
+        assertEquals(null, TabDetector.liveTabDescriptionSelection("已选中，推荐，按钮"));
+        assertEquals(null, TabDetector.liveTabDescriptionSelection("已选中，直播中，按钮"));
+        assertEquals(null, TabDetector.liveTabDescriptionSelection("点击进入直播间按钮"));
     }
 }
