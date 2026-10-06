@@ -4,6 +4,7 @@ import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -26,6 +27,7 @@ import android.widget.Toast;
 import com.zz.douyin.hook.LogBook;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -49,7 +51,6 @@ public final class LogViewerActivity extends Activity {
     private final Button[] levelButtons = new Button[4];
     private File selectedFile;
     private char minLevel = 'D';
-    private String currentText = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -156,7 +157,7 @@ public final class LogViewerActivity extends Activity {
         refreshButton.setOnClickListener(view -> reload());
         actionRow.addView(refreshButton, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        shareButton = smallButton("分享");
+        shareButton = smallButton("分享文件");
         shareButton.setOnClickListener(view -> shareCurrent());
         LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
@@ -213,7 +214,6 @@ public final class LogViewerActivity extends Activity {
         fileContainer.removeAllViews();
         if (files == null || files.isEmpty()) {
             selectedFile = null;
-            currentText = "";
             logView.setText("");
             diagnoseEmpty();
             return;
@@ -283,7 +283,6 @@ public final class LogViewerActivity extends Activity {
 
     private void loadContent() {
         if (selectedFile == null) {
-            currentText = "";
             logView.setText("");
             return;
         }
@@ -293,21 +292,49 @@ public final class LogViewerActivity extends Activity {
         } catch (RuntimeException failed) {
             text = "";
         }
-        currentText = text;
         logView.setText(text.isEmpty() ? "(空)" : text);
         logScroll.post(() -> logScroll.fullScroll(ScrollView.FOCUS_DOWN));
     }
 
     private void shareCurrent() {
-        if (currentText == null || currentText.isEmpty()) {
+        final File source = selectedFile;
+        if (source == null) {
             Toast.makeText(this, "当前没有可分享的日志", Toast.LENGTH_SHORT).show();
             return;
         }
-        Intent share = new Intent(Intent.ACTION_SEND);
-        share.setType("text/plain");
-        share.putExtra(Intent.EXTRA_SUBJECT, "抖仙人运行日志");
-        share.putExtra(Intent.EXTRA_TEXT, currentText);
-        startActivity(Intent.createChooser(share, "分享日志"));
+        shareButton.setEnabled(false);
+        new Thread(() -> {
+            try {
+                File snapshot = LogShareProvider.snapshot(source, getCacheDir());
+                Uri uri = new Uri.Builder()
+                        .scheme("content")
+                        .authority(getPackageName() + ".logshare")
+                        .appendPath(snapshot.getParentFile().getName())
+                        .appendPath(snapshot.getName())
+                        .build();
+                runOnUiThread(() -> {
+                    shareButton.setEnabled(true);
+                    if (isFinishing() || isDestroyed()) return;
+                    Intent share = new Intent(Intent.ACTION_SEND);
+                    share.setType("text/plain");
+                    share.putExtra(Intent.EXTRA_SUBJECT, "抖仙人运行日志");
+                    share.putExtra(Intent.EXTRA_STREAM, uri);
+                    share.setClipData(ClipData.newRawUri("运行日志", uri));
+                    share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    try {
+                        startActivity(Intent.createChooser(share, "分享日志文件"));
+                    } catch (ActivityNotFoundException failed) {
+                        Toast.makeText(this, "没有可接收日志文件的应用", Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (IOException | RuntimeException failed) {
+                runOnUiThread(() -> {
+                    shareButton.setEnabled(true);
+                    if (isFinishing() || isDestroyed()) return;
+                    Toast.makeText(this, "日志文件导出失败，请刷新或检查存储权限", Toast.LENGTH_LONG).show();
+                });
+            }
+        }, "DouyinLogShare").start();
     }
 
     /**

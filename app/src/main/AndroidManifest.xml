@@ -26,5 +26,10 @@
         <activity
             android:name=".LogViewerActivity"
             android:exported="false" />
+        <provider
+            android:name=".LogShareProvider"
+            android:authorities="${applicationId}.logshare"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>
