@@ -87,6 +87,10 @@ final class FeedNavigator {
             LogBook.d("[FeedNav] moveToNext ignored: module disabled");
             return false;
         }
+        if (ImmersiveUi.isLiveRoomActive()) {
+            LogBook.d("[FeedNav] moveToNext ignored: live room, reason=" + reason);
+            return false;
+        }
         long now = SystemClock.uptimeMillis();
         if (swipeRunning) {
             LogBook.d("[FeedNav] moveToNext ignored: swipe in progress");
@@ -136,10 +140,10 @@ final class FeedNavigator {
                 if (!swipeRunning || currentSwipeToken != swipeToken) {
                     return;
                 }
-                if (!ImmersiveUi.isModuleEnabled()) {
+                if (!ImmersiveUi.isModuleEnabled() || ImmersiveUi.isLiveRoomActive()) {
                     dispatch(decor, downTime, SystemClock.uptimeMillis(),
                             MotionEvent.ACTION_CANCEL, x, startY);
-                    finishSwipe(currentSwipeToken, "module disabled", null);
+                    finishSwipe(currentSwipeToken, "navigation disabled", null);
                     return;
                 }
                 float fraction = step / (float) steps;

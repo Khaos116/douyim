@@ -20,6 +20,8 @@ import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.zz.douyin.hook.compat.FeedNavigationCompat;
+
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -146,6 +148,12 @@ final class ImmersiveUi {
 
     static boolean isModuleEnabled() {
         return moduleEnabled;
+    }
+
+    static boolean isLiveRoomActive() {
+        Activity activity = activeActivity();
+        return activity != null
+                && FeedNavigationCompat.isLiveRoomActivity(activity.getClass().getName());
     }
 
     static boolean shouldBlockDoubleTap() {
@@ -522,6 +530,10 @@ final class ImmersiveUi {
     static void onPlaybackCompleted(FeedNavigator.Reason reason) {
         MAIN.post(() -> {
             if (!moduleEnabled) return;
+            if (isLiveRoomActive()) {
+                LogBook.d("[AutoNext] ignored in live room: " + reason);
+                return;
+            }
             if (reason == FeedNavigator.Reason.AUTO_PLAY_FINISHED && !autoNextEnabled) {
                 LogBook.d("[AutoNext] ignored: feature disabled");
                 return;
