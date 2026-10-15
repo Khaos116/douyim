@@ -13,6 +13,19 @@ public final class FeedNavigationCompatTest {
     }
 
     @Test
+    public void onlyMainActivityCanHostTheRecommendationFeedFilter() {
+        assertTrue(FeedNavigationCompat.isMainFeedActivity(
+                "com.ss.android.ugc.aweme.main.MainActivity"));
+        assertFalse(FeedNavigationCompat.isMainFeedActivity(null));
+        assertFalse(FeedNavigationCompat.isMainFeedActivity(
+                "com.ss.android.ugc.aweme.search.activity.SearchResultActivity"));
+        assertFalse(FeedNavigationCompat.isMainFeedActivity(
+                "com.ss.android.ugc.aweme.profile.ui.UserProfileActivity"));
+        assertFalse(FeedNavigationCompat.isMainFeedActivity(
+                "com.ss.android.ugc.aweme.live.LivePlayActivity"));
+    }
+
+    @Test
     public void keepsFeedAndVideoDetailNavigationAvailable() {
         assertFalse(FeedNavigationCompat.isLiveRoomActivity(null));
         assertFalse(FeedNavigationCompat.isLiveRoomActivity(""));

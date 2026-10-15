@@ -63,6 +63,10 @@ final class FeedNavigator {
         return Reason.FILTER_IMAGE;
     }
 
+    static String filterReasonForContext(String reason, boolean live, boolean recommendationTab) {
+        return live && !recommendationTab ? null : reason;
+    }
+
     static boolean shouldFireAutoNext(String aid, String lastAid, boolean alreadyFired) {
         if (aid == null || aid.isEmpty()) {
             return true;

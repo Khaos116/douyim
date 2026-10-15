@@ -113,7 +113,7 @@ final class ImmersiveUi {
     private static WeakReference<View> lastForceLogged =
             new WeakReference<>(null);
     private static String lastForceLoggedAid;
-    private static String lastLiveTabCheckAid;
+    private static String lastLiveRecommendationCheckAid;
     private static String lastUserPausedKeepAid;
     private static long lastHandledTouchDownTime;
     private static long contentCheckNotBefore;
@@ -1816,23 +1816,22 @@ final class ImmersiveUi {
             String reason = model.shouldFilter()
                     ? model.filterReason
                     : null;
-            if (model.live && FeedNavigator.reasonForFilter(reason)
-                    == FeedNavigator.Reason.FILTER_LIVE) {
-                boolean liveTab = TabDetector.isLiveTab(decor);
-                if (!model.aid.equals(lastLiveTabCheckAid)) {
-                    lastLiveTabCheckAid = model.aid;
-                    Activity liveActivity = activeActivity();
+            boolean recommendationTab = false;
+            if (model.live && reason != null) {
+                Activity liveActivity = activeActivity();
+                String activityName = liveActivity == null
+                        ? null : liveActivity.getClass().getName();
+                recommendationTab = FeedNavigationCompat.isMainFeedActivity(activityName)
+                        && TabDetector.isRecommendationTab(decor);
+                if (!model.aid.equals(lastLiveRecommendationCheckAid)) {
+                    lastLiveRecommendationCheckAid = model.aid;
                     LogBook.i("[Filter] live check aid=" + model.aid
-                            + " liveTab=" + liveTab
-                            + " activity=" + (liveActivity == null
-                                    ? "?"
-                                    : liveActivity.getClass().getName())
-                            + " " + TabDetector.diagnoseLiveTab(decor));
-                }
-                if (liveTab) {
-                    reason = null;
+                            + " recommendationTab=" + recommendationTab
+                            + " activity=" + (activityName == null ? "?" : activityName)
+                            + " " + TabDetector.diagnoseRecommendationTab(decor));
                 }
             }
+            reason = FeedNavigator.filterReasonForContext(reason, model.live, recommendationTab);
             if (FeedNavigator.shouldKeepForUserPause(
                     reason, PlaybackState.isUserPaused())) {
                 resetFilterCandidate();

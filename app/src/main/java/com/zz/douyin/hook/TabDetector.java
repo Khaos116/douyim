@@ -14,8 +14,8 @@ final class TabDetector {
     private TabDetector() {
     }
 
-    static boolean isLiveTab(View decor) {
-        for (Candidate candidate : collectLiveTabViews(decor)) {
+    static boolean isRecommendationTab(View decor) {
+        for (Candidate candidate : collectRecommendationTabViews(decor)) {
             if (candidate.selected) {
                 return true;
             }
@@ -23,20 +23,20 @@ final class TabDetector {
         return false;
     }
 
-    static boolean isLiveTabLabel(CharSequence text) {
-        return text != null && "直播".equals(text.toString().trim());
+    static boolean isRecommendationTabLabel(CharSequence text) {
+        return text != null && "推荐".equals(text.toString().trim());
     }
 
-    /** Null means the description does not identify the live tab. */
-    static Boolean liveTabDescriptionSelection(CharSequence description) {
+    /** Null means the description does not identify the recommendation tab. */
+    static Boolean recommendationTabDescriptionSelection(CharSequence description) {
         if (description == null) return null;
-        boolean live = false;
+        boolean recommendation = false;
         boolean selected = false;
         for (String token : description.toString().split("[,，]")) {
-            live |= "直播".equals(token.trim());
+            recommendation |= "推荐".equals(token.trim());
             selected |= "已选中".equals(token.trim());
         }
-        return live ? selected : null;
+        return recommendation ? selected : null;
     }
 
     /**
@@ -63,12 +63,12 @@ final class TabDetector {
     }
 
     /**
-     * One-line diagnosis for filter logs: which "直播" views exist in the
+     * One-line diagnosis for filter logs: which "推荐" views exist in the
      * tree and why each (mis)matched. Only called on live-filter decisions.
      */
-    static String diagnoseLiveTab(View decor) {
-        List<Candidate> found = collectLiveTabViews(decor);
-        StringBuilder out = new StringBuilder("live-views=").append(found.size());
+    static String diagnoseRecommendationTab(View decor) {
+        List<Candidate> found = collectRecommendationTabViews(decor);
+        StringBuilder out = new StringBuilder("recommendation-views=").append(found.size());
         for (Candidate candidate : found) {
             out.append(" [top=").append(candidate.top)
                     .append(" wh=").append(candidate.width).append('x').append(candidate.height)
@@ -81,7 +81,7 @@ final class TabDetector {
         return out.toString();
     }
 
-    private static List<Candidate> collectLiveTabViews(View decor) {
+    private static List<Candidate> collectRecommendationTabViews(View decor) {
         List<Candidate> found = new ArrayList<>();
         if (decor == null || decor.getHeight() <= 0) {
             return found;
@@ -93,7 +93,7 @@ final class TabDetector {
     private static void collect(
             View node, int decorWidth, int decorHeight,
             List<Candidate> found, int[] location) {
-        if (node instanceof TextView text && isLiveTabLabel(text.getText())) {
+        if (node instanceof TextView text && isRecommendationTabLabel(text.getText())) {
             node.getLocationOnScreen(location);
             boolean selfSelected = node.isSelected();
             boolean ancestorSelected = hasSelectedAncestor(node, decorWidth, decorHeight);
@@ -138,7 +138,7 @@ final class TabDetector {
         for (int level = 0; level < MAX_ANCESTOR_LEVELS; level++) {
             if (!isTabSelectionOwner(
                     current.getWidth(), current.getHeight(), decorWidth, decorHeight)) break;
-            Boolean selected = liveTabDescriptionSelection(current.getContentDescription());
+            Boolean selected = recommendationTabDescriptionSelection(current.getContentDescription());
             if (selected != null) return selected;
             if (!(current.getParent() instanceof View parent)) break;
             current = parent;

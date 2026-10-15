@@ -8,23 +8,23 @@ import org.junit.Test;
 
 public final class TabDetectorTest {
     @Test
-    public void liveTabLabelMatchesExactText() {
-        assertTrue(TabDetector.isLiveTabLabel("直播"));
-        assertTrue(TabDetector.isLiveTabLabel("  直播  "));
+    public void recommendationTabLabelMatchesExactText() {
+        assertTrue(TabDetector.isRecommendationTabLabel("推荐"));
+        assertTrue(TabDetector.isRecommendationTabLabel("  推荐  "));
     }
 
     @Test
-    public void liveTabLabelRejectsOthers() {
-        assertFalse(TabDetector.isLiveTabLabel(null));
-        assertFalse(TabDetector.isLiveTabLabel(""));
-        assertFalse(TabDetector.isLiveTabLabel("推荐"));
-        assertFalse(TabDetector.isLiveTabLabel("直播中"));
-        assertFalse(TabDetector.isLiveTabLabel("看直播"));
+    public void recommendationTabLabelRejectsOthers() {
+        assertFalse(TabDetector.isRecommendationTabLabel(null));
+        assertFalse(TabDetector.isRecommendationTabLabel(""));
+        assertFalse(TabDetector.isRecommendationTabLabel("直播"));
+        assertFalse(TabDetector.isRecommendationTabLabel("推荐视频"));
+        assertFalse(TabDetector.isRecommendationTabLabel("猜你喜欢"));
     }
 
     @Test
-    public void liveTabRejectsNullDecor() {
-        assertFalse(TabDetector.isLiveTab(null));
+    public void recommendationTabRejectsNullDecor() {
+        assertFalse(TabDetector.isRecommendationTab(null));
     }
 
     @Test
@@ -56,18 +56,18 @@ public final class TabDetectorTest {
     }
 
     @Test
-    public void recognizesTheHostsSelectedLiveTabDescription() {
-        assertEquals(Boolean.TRUE, TabDetector.liveTabDescriptionSelection("已选中，直播，按钮"));
-        assertEquals(Boolean.TRUE, TabDetector.liveTabDescriptionSelection(" 已选中, 直播, 按钮 "));
+    public void recognizesTheHostsSelectedRecommendationTabDescription() {
+        assertEquals(Boolean.TRUE, TabDetector.recommendationTabDescriptionSelection("已选中，推荐，按钮"));
+        assertEquals(Boolean.TRUE, TabDetector.recommendationTabDescriptionSelection(" 已选中, 推荐, 按钮 "));
     }
 
     @Test
-    public void descriptionRequiresBothExactLiveAndSelectedTokens() {
-        assertEquals(null, TabDetector.liveTabDescriptionSelection(null));
-        assertEquals(Boolean.FALSE, TabDetector.liveTabDescriptionSelection("直播，按钮"));
-        assertEquals(Boolean.FALSE, TabDetector.liveTabDescriptionSelection("未选中，直播，按钮"));
-        assertEquals(null, TabDetector.liveTabDescriptionSelection("已选中，推荐，按钮"));
-        assertEquals(null, TabDetector.liveTabDescriptionSelection("已选中，直播中，按钮"));
-        assertEquals(null, TabDetector.liveTabDescriptionSelection("点击进入直播间按钮"));
+    public void descriptionRequiresBothExactRecommendationAndSelectedTokens() {
+        assertEquals(null, TabDetector.recommendationTabDescriptionSelection(null));
+        assertEquals(Boolean.FALSE, TabDetector.recommendationTabDescriptionSelection("推荐，按钮"));
+        assertEquals(Boolean.FALSE, TabDetector.recommendationTabDescriptionSelection("未选中，推荐，按钮"));
+        assertEquals(null, TabDetector.recommendationTabDescriptionSelection("已选中，直播，按钮"));
+        assertEquals(null, TabDetector.recommendationTabDescriptionSelection("已选中，推荐视频，按钮"));
+        assertEquals(null, TabDetector.recommendationTabDescriptionSelection("点击进入直播间按钮"));
     }
 }

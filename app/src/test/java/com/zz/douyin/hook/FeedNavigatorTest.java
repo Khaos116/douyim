@@ -66,6 +66,15 @@ public final class FeedNavigatorTest {
     }
 
     @Test
+    public void liveFiltersRunOnlyOnTheRecommendedFeed() {
+        assertEquals(null, FeedNavigator.filterReasonForContext("live model", true, false));
+        assertEquals(null, FeedNavigator.filterReasonForContext("advertisement model", true, false));
+        assertEquals("live model", FeedNavigator.filterReasonForContext("live model", true, true));
+        assertEquals("advertisement model",
+                FeedNavigator.filterReasonForContext("advertisement model", false, false));
+    }
+
+    @Test
     public void autoNextFiresOncePerAid() {
         assertTrue(FeedNavigator.shouldFireAutoNext("a1", null, false));
         assertTrue(FeedNavigator.shouldFireAutoNext("a1", "a1", false));

@@ -8,4 +8,8 @@ public final class FeedNavigationCompat {
         // Confirmed by runtime logs; adapt here if the host changes its live-room entry.
         return "com.ss.android.ugc.aweme.live.LivePlayActivity".equals(activityClassName);
     }
+
+    public static boolean isMainFeedActivity(String activityClassName) {
+        return "com.ss.android.ugc.aweme.main.MainActivity".equals(activityClassName);
+    }
 }
