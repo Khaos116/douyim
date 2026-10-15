@@ -73,6 +73,10 @@ final class FeedNavigator {
         return !alreadyFired;
     }
 
+    static boolean canNavigatePlayback(FeedContentTracker.Snapshot model) {
+        return model != null && model.hasVideo && !model.live;
+    }
+
     /**
      * A user-paused item is never auto-filtered: an explicit pause means the
      * user wants to stay, so every filter reason is suspended until resume or
@@ -90,6 +94,17 @@ final class FeedNavigator {
         if (ImmersiveUi.isLiveRoomActive()) {
             LogBook.d("[FeedNav] moveToNext ignored: live room, reason=" + reason);
             return false;
+        }
+        if (reason == Reason.AUTO_PLAY_FINISHED || reason == Reason.PLAYBACK_ERROR) {
+            try {
+                if (!canNavigatePlayback(FeedContentTracker.current(decor))) {
+                    LogBook.d("[FeedNav] moveToNext ignored: no current feed video, reason=" + reason);
+                    return false;
+                }
+            } catch (RuntimeException error) {
+                LogBook.w("[FeedNav] current feed lookup failed", error);
+                return false;
+            }
         }
         long now = SystemClock.uptimeMillis();
         if (swipeRunning) {

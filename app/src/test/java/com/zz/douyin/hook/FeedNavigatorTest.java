@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.zz.douyin.FilterPreferences;
+
 import org.junit.Test;
 
 public final class FeedNavigatorTest {
@@ -82,6 +84,26 @@ public final class FeedNavigatorTest {
     }
 
     @Test
+    public void playbackNavigationRequiresVisibleVideoRatherThanLiveRoom() {
+        assertFalse(FeedNavigator.canNavigatePlayback(null));
+
+        FakeAweme aweme = new FakeAweme();
+        aweme.awemeType = 0;
+        aweme.video = new Object();
+        assertTrue(FeedNavigator.canNavigatePlayback(
+                FeedContentTracker.snapshot(aweme, FilterPreferences.defaults())));
+
+        aweme.awemeType = 101;
+        assertFalse(FeedNavigator.canNavigatePlayback(
+                FeedContentTracker.snapshot(aweme, FilterPreferences.defaults())));
+
+        aweme.awemeType = 0;
+        aweme.video = null;
+        assertFalse(FeedNavigator.canNavigatePlayback(
+                FeedContentTracker.snapshot(aweme, FilterPreferences.defaults())));
+    }
+
+    @Test
     public void userPausedItemIsKeptRegardlessOfFilterReason() {
         assertTrue(FeedNavigator.shouldKeepForUserPause("photo article model", true));
         assertTrue(FeedNavigator.shouldKeepForUserPause("advertisement model", true));
@@ -109,5 +131,11 @@ public final class FeedNavigatorTest {
                 FeedNavigator.Reason.FILTER_IMAGE,
                 FeedNavigator.reasonForFilter("some future model")
         );
+    }
+
+    public static final class FakeAweme {
+        public String aid = "test";
+        public int awemeType;
+        public Object video;
     }
 }
