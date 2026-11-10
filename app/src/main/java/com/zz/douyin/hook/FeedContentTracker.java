@@ -277,10 +277,8 @@ public final class FeedContentTracker {
             if (activeSettings.skipLives) {
                 reason = "live model";
             }
-        } else if (aigc) {
-            if (activeSettings.skipAigc) {
-                reason = "aigc model";
-            }
+        } else if (aigc && activeSettings.skipAigc) {
+            reason = "aigc model";
         } else if (photo || article != null) {
             if (activeSettings.skipImages) {
                 reason = photo ? "photo article model" : "article model";
@@ -458,6 +456,9 @@ public final class FeedContentTracker {
         static boolean isLiveModel(boolean hostLive, int awemeType, boolean hasPlayUrl) {
             if (isTypeIn(LIVE_TYPES, awemeType)) {
                 return true;
+            }
+            if (isTypeIn(IMAGE_TYPES, awemeType) || isTypeIn(AIGC_TYPES, awemeType)) {
+                return false;
             }
             return hostLive && !hasPlayUrl;
         }

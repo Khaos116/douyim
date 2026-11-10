@@ -191,6 +191,48 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
+    public void aigcModelStillObeysImageAndKeywordFiltersWhenAigcIsOff() {
+        FakeAweme imagePost = videoAweme(163);
+        imagePost.video = null;
+        imagePost.imageInfos = List.of(new Object());
+
+        assertEquals("photo article model", snapshot(
+                imagePost,
+                new FilterPreferences.Values(
+                        false, true, false, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS, false)
+        ).filterReason);
+
+        FakeAweme videoPost = videoAweme(163);
+        videoPost.video = new FakeVideo(List.of("https://example.invalid/v.mp4"));
+        videoPost.desc = "AI 生成的游戏画面";
+
+        assertEquals("video keyword: 游戏", snapshot(
+                videoPost,
+                new FilterPreferences.Values(
+                        false, true, true, false, "游戏",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS, false)
+        ).filterReason);
+    }
+
+    @Test
+    public void imageTypeIsNeverTakenForLiveByHostFlag() {
+        FakeAweme aweme = videoAweme(2);
+        aweme.video = null;
+        aweme.hostLive = true;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                aweme,
+                new FilterPreferences.Values(
+                        false, true, true, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+        );
+
+        assertFalse(snapshot.live);
+        assertEquals("photo article model", snapshot.filterReason);
+    }
+
+    @Test
     public void liveTypeTableCoversFortyOneAndOneHundredFive() {
         for (int type : new int[] {41, 101, 105}) {
             FeedContentTracker.Snapshot snapshot = snapshot(
