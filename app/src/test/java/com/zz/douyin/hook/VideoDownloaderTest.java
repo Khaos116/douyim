@@ -1,7 +1,9 @@
 package com.zz.douyin.hook;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -49,6 +51,15 @@ public final class VideoDownloaderTest {
                 "https://www.douyin.com/video/123",
                 VideoDownloader.shareUrl("123")
         );
+    }
+
+    @Test
+    public void unknownAidIsNotIdentifiable() {
+        assertFalse(VideoDownloader.isIdentifiableAid(null));
+        assertFalse(VideoDownloader.isIdentifiableAid(""));
+        assertFalse(VideoDownloader.isIdentifiableAid("  "));
+        assertFalse(VideoDownloader.isIdentifiableAid("unknown"));
+        assertTrue(VideoDownloader.isIdentifiableAid("7691631033780306600"));
     }
 
     private static FeedContentTracker.Snapshot snapshot(

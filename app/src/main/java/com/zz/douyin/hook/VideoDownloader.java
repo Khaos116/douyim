@@ -144,8 +144,13 @@ final class VideoDownloader {
         return snapshot.playUrls.get(0).url;
     }
 
+    /** aid 是否能唯一指向一条作品：空白与读取失败占位 "unknown" 都不算。 */
+    static boolean isIdentifiableAid(String aid) {
+        return aid != null && !aid.isBlank() && !"unknown".equals(aid);
+    }
+
     static String shareUrl(String aid) {
-        if (aid == null || aid.isEmpty() || "unknown".equals(aid)) {
+        if (!isIdentifiableAid(aid)) {
             return null;
         }
         return "https://www.douyin.com/video/" + aid;
@@ -586,8 +591,9 @@ final class VideoDownloader {
             return Collections.emptyList();
         }
         // 重试期间用户可能已经滑到下一条：接受别的作品地址会把 B 的内容
-        // 存成 A 的文件名，所以只接受同一个 aid 的刷新结果。
-        if (snapshot.aid == null || !snapshot.aid.equals(refreshed.aid)) {
+        // 存成 A 的文件名，所以只接受同一个 aid 的刷新结果。aid 读取失败时
+        // 两条作品都会是 "unknown"，这种确认不了同一条的情况一律不刷新。
+        if (!isIdentifiableAid(snapshot.aid) || !snapshot.aid.equals(refreshed.aid)) {
             LogBook.i("[Download] refresh skipped: feed moved from aid="
                     + snapshot.aid + " to aid=" + refreshed.aid);
             return Collections.emptyList();

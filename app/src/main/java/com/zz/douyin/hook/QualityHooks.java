@@ -80,6 +80,9 @@ final class QualityHooks {
      * 没有可钉死的字段，只记录“已尝试”。清晰度设置变化时用这里的原值把宿主
      * 列表与 hit 预选还原，再按新目标重新选档；选“自动”时只还原不再裁剪。
      */
+    /** 不钉死（总开关关闭或清晰度为自动）时的缓存键。 */
+    private static final String SETTING_NOT_ENFORCED = "<not-enforced>";
+
     private static final class SimPin {
         final List<Object> variants;
         final Object hitBitrate;
@@ -281,7 +284,9 @@ final class QualityHooks {
         if (model == null) {
             return;
         }
-        String setting = qualitySetting;
+        // 缓存键用“生效中的目标”，而不是单纯的清晰度字符串：总开关关闭与
+        // 清晰度为自动都不钉死，两者都要让已钉死的模型还原成宿主原始列表。
+        String setting = enforcing() ? qualitySetting : SETTING_NOT_ENFORCED;
         SimPin pin;
         synchronized (PINNED_SIM) {
             pin = PINNED_SIM.get(model);
@@ -290,7 +295,7 @@ final class QualityHooks {
             return;
         }
         if (pin == null && !enforcing()) {
-            // 自动档且从未钉死过：没有要还原的东西，不做任何反射。
+            // 不钉死且从未钉死过：没有要还原的东西，不做任何反射。
             return;
         }
         Field bitRateField = cachedField(model.getClass(), "bitRate");
