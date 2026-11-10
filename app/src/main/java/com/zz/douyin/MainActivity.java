@@ -19,8 +19,10 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -33,6 +35,16 @@ public final class MainActivity extends Activity
     private static final int PRIMARY = Color.rgb(254, 44, 85);
     private static final int TEXT_PRIMARY = Color.rgb(245, 245, 248);
     private static final int TEXT_SECONDARY = Color.rgb(169, 171, 180);
+
+    /** 清晰度选项：偏好值与界面文案一一对应。 */
+    private static final String[] QUALITY_VALUES = {
+            FilterPreferences.QUALITY_AUTO,
+            "360", "480", "540", "720", "1080", "1440", "2160",
+            FilterPreferences.QUALITY_MAX
+    };
+    private static final String[] QUALITY_LABELS = {
+            "自动", "360P", "480P", "540P", "720P", "1080P", "2K", "4K", "最高"
+    };
 
     private TextView serviceStatus;
     private Switch moduleEnabled;
@@ -62,6 +74,8 @@ public final class MainActivity extends Activity
     private EditText locationColorInput;
     private final Map<EditText, View> colorSwatches = new LinkedHashMap<>();
     private Button saveColors;
+    private Switch doubleTapComments;
+    private final List<Button> qualityChips = new ArrayList<>();
     private EditText keywordInput;
     private Button saveKeywords;
     private SharedPreferences preferences;
@@ -215,6 +229,13 @@ public final class MainActivity extends Activity
                 FilterPreferences.KEY_SHOW_DANMAKU
         );
         addDivider(playbackCard);
+        doubleTapComments = addSwitch(
+                playbackCard,
+                "双击打开评论区",
+                "播放时双击视频画面打开评论区，不再触发点赞和爱心动画",
+                FilterPreferences.KEY_DOUBLE_TAP_COMMENTS
+        );
+        addDivider(playbackCard);
         blockDoubleTap = addSwitch(playbackCard, "禁用屏幕双击",
                 "拦截视频画面双击，保留单击暂停、滑动和侧边长按",
                 FilterPreferences.KEY_BLOCK_DOUBLE_TAP);
@@ -250,6 +271,8 @@ public final class MainActivity extends Activity
         showProgress = addSwitch(playbackCard, "常显播放进度条",
                 "沉浸播放时保留底部视频进度条，不随其他界面隐藏",
                 FilterPreferences.KEY_SHOW_PROGRESS);
+        addDivider(playbackCard);
+        addQualitySelector(playbackCard);
         LinearLayout.LayoutParams playbackCardParams = matchWrap();
         playbackCardParams.topMargin = dp(10);
         root.addView(playbackCard, playbackCardParams);
@@ -571,6 +594,90 @@ public final class MainActivity extends Activity
         keywordInput.setSelection(keywordInput.length());
     }
 
+    /** 清晰度选择行：标题 + 说明 + 三列网格平铺的档位胶囊（不滚动，直接换行）。 */
+    private void addQualitySelector(LinearLayout parent) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(16), dp(14), dp(16), dp(14));
+
+        TextView labelView = text("视频清晰度", 17, TEXT_PRIMARY);
+        labelView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        row.addView(labelView, matchWrap());
+        TextView descriptionView = text(
+                "固定每个视频播放的清晰度，不随网络等条件自动升降档；视频没有该档位时就近选择",
+                13,
+                TEXT_SECONDARY
+        );
+        descriptionView.setLineSpacing(0, 1.15f);
+        LinearLayout.LayoutParams descriptionParams = matchWrap();
+        descriptionParams.topMargin = dp(3);
+        row.addView(descriptionView, descriptionParams);
+
+        qualityChips.clear();
+        for (int rowIndex = 0; rowIndex < 3; rowIndex++) {
+            LinearLayout chipRow = new LinearLayout(this);
+            chipRow.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams chipRowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (rowIndex == 0) {
+                chipRowParams.topMargin = dp(10);
+            } else {
+                chipRowParams.topMargin = dp(8);
+            }
+            for (int column = 0; column < 3; column++) {
+                int index = rowIndex * 3 + column;
+                if (index >= QUALITY_VALUES.length) {
+                    break;
+                }
+                Button chip = new Button(this);
+                chip.setText(QUALITY_LABELS[index]);
+                chip.setTextColor(TEXT_PRIMARY);
+                chip.setTextSize(13);
+                chip.setAllCaps(false);
+                chip.setMinWidth(0);
+                chip.setMinimumWidth(0);
+                chip.setPadding(dp(4), 0, dp(4), 0);
+                chip.setContentDescription("清晰度 " + QUALITY_LABELS[index]);
+                final String value = QUALITY_VALUES[index];
+                chip.setOnClickListener(view -> saveString(
+                        FilterPreferences.KEY_VIDEO_QUALITY,
+                        value
+                ));
+                LinearLayout.LayoutParams chipParams = new LinearLayout.LayoutParams(
+                        0,
+                        dp(36),
+                        1f
+                );
+                chipParams.leftMargin = column == 0 ? 0 : dp(4);
+                chipParams.rightMargin = column == 2 ? 0 : dp(4);
+                chipRow.addView(chip, chipParams);
+                qualityChips.add(chip);
+            }
+            row.addView(chipRow, chipRowParams);
+        }
+
+        parent.addView(row, matchWrap());
+    }
+
+    private void refreshQualityChips(String selected) {
+        for (int index = 0; index < qualityChips.size(); index++) {
+            Button chip = qualityChips.get(index);
+            boolean active = QUALITY_VALUES[index].equals(selected);
+            GradientDrawable background = rounded(
+                    active ? PRIMARY : Color.rgb(38, 39, 45),
+                    18
+            );
+            if (!active) {
+                background.setStroke(dp(1), Color.rgb(58, 60, 68));
+            }
+            chip.setBackground(background);
+            chip.setTextColor(active ? Color.WHITE : TEXT_SECONDARY);
+            chip.setTypeface(Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
+        }
+    }
+
     private Switch addSwitch(
             LinearLayout parent,
             String label,
@@ -666,6 +773,20 @@ public final class MainActivity extends Activity
         Toast.makeText(this, savedMessage("TAB 关键词已保存"), Toast.LENGTH_SHORT).show();
     }
 
+    private void saveString(String key, String value) {
+        SharedPreferences current = preferences;
+        if (current == null) {
+            return;
+        }
+        SharedPreferences.Editor editor = current.edit();
+        if (editor != null) {
+            editor.putString(key, value).apply();
+            if (FilterPreferences.KEY_VIDEO_QUALITY.equals(key)) {
+                refreshQualityChips(value);
+            }
+        }
+    }
+
     private void saveKeywordSettings() {
         SharedPreferences current = preferences;
         if (current == null) {
@@ -718,6 +839,11 @@ public final class MainActivity extends Activity
         }
         saveColors.setEnabled(enabled);
         saveColors.setAlpha(enabled ? 1f : 0.45f);
+        doubleTapComments.setEnabled(enabled);
+        for (Button chip : qualityChips) {
+            chip.setEnabled(enabled);
+            chip.setAlpha(enabled ? 1f : 0.45f);
+        }
         keywordInput.setEnabled(enabled);
         saveKeywords.setEnabled(enabled);
         saveKeywords.setAlpha(enabled ? 1f : 0.45f);

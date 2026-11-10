@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -53,6 +54,7 @@ final class ImmersiveUi {
             };
     private static WeakReference<View> hiddenGuardRoot = new WeakReference<>(null);
     private static volatile boolean showDanmaku;
+    private static volatile boolean openCommentsOnDoubleTap;
     private static volatile boolean moduleEnabled = true;
     private static volatile boolean blockDoubleTap;
     private static volatile boolean immersiveEnabled = true;
@@ -126,6 +128,13 @@ final class ImmersiveUi {
     private static int filterCandidateCount;
     private static long filterCandidateAt;
     private static String lastAcceptedAid;
+    private static int lastDanmakuCount = -1;
+    private static long lastCommentOpenAt;
+    private static long commentsOpenedAt;
+    private static volatile long syntheticTapUntil;
+    private static long filterBurstStart;
+    private static int filterBurstCount;
+    private static long filterSuspendedUntil;
 
     private ImmersiveUi() {
     }
@@ -161,6 +170,143 @@ final class ImmersiveUi {
         return moduleEnabled && blockDoubleTap;
     }
 
+    static boolean shouldOpenCommentsOnDoubleTap() {
+        return moduleEnabled && openCommentsOnDoubleTap;
+    }
+
+    /**
+     * Double tap opens the native comment panel. The panel itself is host UI, so the tap is
+     * forwarded to the real comment button instead of synthesizing a second single tap; the
+     * gesture is still consumed so the like/heart animation never runs.
+     */
+    static void onDoubleTapForComments() {
+        if (!moduleEnabled || !openCommentsOnDoubleTap) {
+            return;
+        }
+        long now = SystemClock.uptimeMillis();
+        if (now - lastCommentOpenAt < 800L) {
+            // Three hooked callbacks (interceptDoubleClick + onDoubleTap + onDoubleTapEvent)
+            // report the same gesture; clicking three times toggled the panel back shut.
+            return;
+        }
+        lastCommentOpenAt = now;
+        attemptOpenComments(0);
+    }
+
+    private static void attemptOpenComments(int attempt) {
+        MAIN.postDelayed(() -> {
+            Activity activity = activeActivity();
+            View decor = activeDecor(activity);
+            if (decor == null) {
+                return;
+            }
+            if (attempt > 0 && isCommentPanelVisible(decor)) {
+                scheduleScan(0L);
+                return;
+            }
+            List<View> candidates = new ArrayList<>();
+            collectCommentCandidates(decor, decor, candidates);
+            if (candidates.isEmpty()) {
+                // The first video after a cold start has no right action bar yet; searching
+                // again a moment later is what makes the very first double tap work.
+                if (attempt < 2) {
+                    attemptOpenComments(attempt + 1);
+                } else {
+                    LogBook.w("double tap: comment entry not found");
+                }
+                return;
+            }
+            clickCommentCandidate(decor, candidates, 0);
+        }, attempt == 0 ? 0L : 350L);
+    }
+
+    /**
+     * Click the container that owns the click listener. Digging into the smallest clickable
+     * child landed on the comment counter (TextSwitcher), which only animates the number.
+     */
+    private static View clickableTarget(View node) {
+        View current = node;
+        for (int level = 0; level < 4 && current != null; level++) {
+            if (current.isClickable() && current.hasOnClickListeners()) {
+                return current;
+            }
+            current = current.getParent() instanceof View parent ? parent : null;
+        }
+        return node;
+    }
+
+    private static void clickCommentCandidate(
+            View decor,
+            List<View> candidates,
+            int index
+    ) {
+        if (index >= candidates.size() || index >= 3) {
+            LogBook.w("double tap: no candidate opened the comment panel");
+            return;
+        }
+        View target = clickableTarget(candidates.get(index));
+        LogBook.i("double tap opens comments: "
+                + target.getClass().getName()
+                + " id=" + target.getId()
+                + " desc=" + target.getContentDescription()
+                + " listeners=" + target.hasOnClickListeners()
+                + " candidate=" + index);
+        if (!tapView(decor, target)) {
+            target.performClick();
+        }
+        commentsOpenedAt = SystemClock.uptimeMillis();
+        scheduleScan(0L);
+        MAIN.postDelayed(() -> {
+            if (isCommentPanelVisible(decor)) {
+                scheduleScan(0L);
+                return;
+            }
+            LogBook.i("candidate " + index + " did not open comments, trying next");
+            clickCommentCandidate(decor, candidates, index + 1);
+        }, 500L);
+    }
+
+
+    private static void collectCommentCandidates(
+            View node,
+            View decor,
+            List<View> out
+    ) {
+        if (node == null || !node.isAttachedToWindow() || !node.isShown()) {
+            return;
+        }
+        CharSequence description = node.getContentDescription();
+        String label = description == null ? "" : description.toString();
+        boolean mentionsComment = label.contains("评论")
+                || label.toLowerCase(java.util.Locale.ROOT).contains("comment");
+        String className = node.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+        if (className.startsWith("com.ss.android.ugc.aweme.comment.")
+                || className.contains("commenttopaction")
+                || className.contains("commentlist")
+                || className.contains("commentinput")) {
+            // Inside the opened comment panel: never click panel internals.
+            return;
+        }
+        boolean looksLikeCommentView = className.contains("comment");
+        Rect visible = new Rect();
+        boolean rightSide = node.getGlobalVisibleRect(visible)
+                && visible.centerX() > decor.getWidth() * 0.6f
+                && visible.width() > 0
+                && visible.width() <= decor.getWidth() * 0.35f
+                && visible.height() > 0
+                && visible.height() <= decor.getHeight() * 0.25f;
+        if ((mentionsComment || (looksLikeCommentView && rightSide))
+                && node.isClickable()
+                && rightSide) {
+            out.add(node);
+        }
+        if (node instanceof ViewGroup group) {
+            for (int index = 0; index < group.getChildCount(); index++) {
+                collectCommentCandidates(group.getChildAt(index), decor, out);
+            }
+        }
+    }
+
     private static void refreshPreferences(SharedPreferences preferences) {
         boolean enabled = com.zz.douyin.FilterPreferences.readModuleEnabled(preferences);
         boolean changed = moduleEnabled != enabled;
@@ -182,6 +328,8 @@ final class ImmersiveUi {
                 com.zz.douyin.FilterPreferences.readHideTabs(preferences));
         showProgressBar = com.zz.douyin.FilterPreferences.readShowProgress(preferences);
         showDanmaku = com.zz.douyin.FilterPreferences.readShowDanmaku(preferences);
+        openCommentsOnDoubleTap =
+                com.zz.douyin.FilterPreferences.readDoubleTapComments(preferences);
         MAIN.post(() -> {
             if (changed) {
                 touchGestureToken++;
@@ -662,6 +810,21 @@ final class ImmersiveUi {
 
         removeDownloadButton();
         removeCopyLinkButton();
+        if (commentsOpenedAt > 0L) {
+            long openedFor = SystemClock.uptimeMillis() - commentsOpenedAt;
+            boolean opening = openedFor < 1_200L;
+            // Never trust the player-size heuristic here: 图文 keeps a tiny audio surface,
+            // which made the hold permanent and killed immersive playback after closing.
+            if (opening || (openedFor < 30_000L && isCommentPanelVisible(decor))) {
+                // The sheet is host UI: hiding it left a black half screen, so keep the real
+                // UI until it is closed.
+                restoreAll(activity, decor);
+                scheduleNextScan();
+                return;
+            }
+            commentsOpenedAt = 0L;
+            LogBook.i("comment panel closed, immersive resumes");
+        }
         List<View> videos = findVisibleVideoViews(
                 decor,
                 realVideos.visibleVideos
@@ -671,7 +834,17 @@ final class ImmersiveUi {
             expandVideoViewport(decor, videos);
             List<View> preservedViews = new ArrayList<>(videos);
             if (showDanmaku) {
+                int before = preservedViews.size();
                 collectVisibleDanmakuViews(decor, videos, preservedViews);
+                int found = preservedViews.size() - before;
+                if (found != lastDanmakuCount) {
+                    lastDanmakuCount = found;
+                    LogBook.i("preserved danmaku layers=" + found
+                            + (found > 0
+                            ? " " + preservedViews.get(preservedViews.size() - 1)
+                            .getClass().getSimpleName()
+                            : ""));
+                }
             }
             if (showProgressBar) {
                 collectVisibleProgressViews(decor, preservedViews);
@@ -752,10 +925,19 @@ final class ImmersiveUi {
         return resolved;
     }
 
+    /**
+     * 普通视频要「暂停」后才出现下载按钮；图文没有暂停状态（只有背景音乐），
+     * 识别为图文并恢复完整界面时就允许保存图片。
+     */
+    private static boolean canDownload() {
+        return PlaybackState.isContentAvailable()
+                && (PlaybackState.isUserPaused() || PlaybackState.isPhotoContent());
+    }
+
     private static void showDownloadButton(Activity activity, View decor) {
         if (!moduleEnabled || activity == null
                 || decor == null
-                || !PlaybackState.isUserPaused()
+                || !canDownload()
                 || !(decor instanceof FrameLayout container)) {
             removeDownloadButton();
             return;
@@ -784,7 +966,7 @@ final class ImmersiveUi {
         button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
         button.setGravity(Gravity.CENTER);
         button.setIncludeFontPadding(false);
-        button.setContentDescription("下载视频或音频");
+        button.setContentDescription("下载当前视频、音频或图片");
         button.setClickable(true);
         button.setFocusable(true);
         button.setElevation(dp(decor, 6));
@@ -795,7 +977,7 @@ final class ImmersiveUi {
         background.setStroke(dp(decor, 1), 0x66FFFFFF);
         button.setBackground(background);
         button.setOnClickListener(ignored -> {
-            if (!moduleEnabled || !PlaybackState.isUserPaused()) {
+            if (!moduleEnabled || !canDownload()) {
                 removeDownloadButton();
                 return;
             }
@@ -807,7 +989,11 @@ final class ImmersiveUi {
                 removeDownloadButton();
                 return;
             }
-            VideoDownloader.chooseDownload(currentActivity, snapshot);
+            VideoDownloader.chooseDownload(
+                    currentActivity,
+                    snapshot,
+                    () -> FeedContentTracker.current(currentDecor)
+            );
         });
 
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
@@ -827,7 +1013,7 @@ final class ImmersiveUi {
 
     private static void repositionDownloadButton(TextView button, View decor) {
         if (downloadButton.get() != button
-                || !PlaybackState.isUserPaused()
+                || !canDownload()
                 || !(button.getLayoutParams() instanceof FrameLayout.LayoutParams params)) {
             return;
         }
@@ -1144,17 +1330,62 @@ final class ImmersiveUi {
 
     private static RenderViews findVisibleRealVideoViews(View root) {
         List<View> candidates = new ArrayList<>();
-        collectRealVideoViews(root, candidates);
+        List<View> photoCandidates = new ArrayList<>();
+        collectRenderViews(root, candidates, photoCandidates);
         List<View> visible = centeredVisibleVideoViews(root, candidates);
-        if (visible.isEmpty()) {
-            return RenderViews.EMPTY;
+        visible.removeIf(ImmersiveUi::isRenderSurfaceUnavailable);
+        List<View> preserved = new ArrayList<>(visible);
+        // 图文/图集 posts draw the photo in a large image or Skity view while the "video"
+        // surface stays black. Merging those layers unconditionally (instead of waiting for
+        // the content model) removes the black frame when a video turns into a 图文 post.
+        for (View photo : centeredVisibleVideoViews(root, photoCandidates)) {
+            if (!preserved.contains(photo)) {
+                preserved.add(photo);
+            }
         }
-        visible.removeIf(candidate -> !hasValidRenderSurface(candidate));
-        if (visible.isEmpty()) {
-            return RenderViews.EMPTY;
-        }
-        return new RenderViews(visible);
+        return preserved.isEmpty()
+                ? RenderViews.EMPTY
+                : new RenderViews(preserved);
     }
+
+
+    /** True while a comment sheet covers the lower part of the feed. */
+    private static boolean isCommentPanelVisible(View decor) {
+        int minHeight = Math.max(1, decor.getHeight() / 4);
+        return containsVisibleCommentPanel(decor, decor, minHeight);
+    }
+
+    private static boolean containsVisibleCommentPanel(
+            View node,
+            View decor,
+            int minHeight
+    ) {
+        String name = node.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+        boolean commentType = name.contains(".comment.")
+                || name.contains("commentlist")
+                || name.contains("commentpanel")
+                || name.contains("commentinput");
+        if (commentType && node.isShown()) {
+            Rect rect = new Rect();
+            if (node.getGlobalVisibleRect(rect) && rect.height() >= minHeight) {
+                return true;
+            }
+        }
+        if (node instanceof ViewGroup group) {
+            for (int index = 0; index < group.getChildCount(); index++) {
+                if (containsVisibleCommentPanel(group.getChildAt(index), decor, minHeight)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isRenderSurfaceUnavailable(View view) {
+        return (view instanceof SurfaceView || view instanceof TextureView)
+                && !hasValidRenderSurface(view);
+    }
+
 
     private static List<View> findVisibleVideoViews(
             View root,
@@ -1165,7 +1396,11 @@ final class ImmersiveUi {
         }
         List<View> candidates = new ArrayList<>();
         collectFallbackVideoViews(root, candidates);
-        return centeredVisibleVideoViews(root, candidates);
+        List<View> visible = centeredVisibleVideoViews(root, candidates);
+        // A preserved renderer without a valid Surface would show a black picture with all
+        // host UI hidden; restoring the UI is always better than a black screen.
+        visible.removeIf(ImmersiveUi::isRenderSurfaceUnavailable);
+        return visible;
     }
 
     private static boolean hasValidRenderSurface(View view) {
@@ -1243,6 +1478,38 @@ final class ImmersiveUi {
         if (view instanceof ViewGroup group) {
             for (int i = 0; i < group.getChildCount(); i++) {
                 collectRealVideoViews(group.getChildAt(i), out);
+            }
+        }
+    }
+
+    /** Single tree walk filling both the surface and the 图文 content candidates. */
+    private static void collectRenderViews(
+            View view,
+            List<View> surfaces,
+            List<View> photos
+    ) {
+        if (view instanceof SurfaceView || view instanceof TextureView) {
+            surfaces.add(view);
+        } else {
+            String className = view.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+            if (view instanceof ImageView) {
+                if (className.endsWith("imageview")
+                        || className.contains("drawee")
+                        || className.contains("photoview")
+                        || className.contains("slides")) {
+                    photos.add(view);
+                }
+            } else if (className.contains("functorview")
+                    || className.contains("horizon")
+                    || className.contains("slidesview")
+                    || className.contains("slideview")
+                    || className.contains("slidepager")) {
+                photos.add(view);
+            }
+        }
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                collectRenderViews(group.getChildAt(i), surfaces, photos);
             }
         }
     }
@@ -1332,7 +1599,19 @@ final class ImmersiveUi {
             List<View> videos,
             List<View> out
     ) {
-        if (DanmakuViewClassifier.isRenderView(node.getClass().getName())
+        String className = node.getClass().getName();
+        if (DanmakuViewClassifier.isContainer(className)
+                && node.isAttachedToWindow()
+                && node.getVisibility() == View.VISIBLE) {
+            // 40.8 swaps renderer children (compose/functor/canvas) inside this layer while
+            // playing, so the whole subtree has to stay preserved; whitelisting single
+            // renderers hid every comment drawn by the others.
+            if (!out.contains(node)) {
+                out.add(node);
+            }
+            return;
+        }
+        if (DanmakuViewClassifier.isRenderView(className)
                 && node.isAttachedToWindow()
                 && node.getVisibility() == View.VISIBLE
                 && overlapsAnyVideo(node, videos)
@@ -1632,6 +1911,10 @@ final class ImmersiveUi {
     }
 
     static boolean shouldBlockHiddenTouch(View view, boolean cancel) {
+        if (isSyntheticTapActive()) {
+            // Our own comment tap has to reach the hidden right bar.
+            return false;
+        }
         if (!moduleEnabled || !immersiveEnabled || cancel || !hasHiddenViews()) {
             return false;
         }
@@ -1780,6 +2063,40 @@ final class ImmersiveUi {
         // Window flags are deliberately left untouched; see hideSystemBars.
     }
 
+    private static boolean tapView(View decor, View target) {
+        Rect rect = new Rect();
+        if (!target.getGlobalVisibleRect(rect) || rect.isEmpty()) {
+            return false;
+        }
+        long now = SystemClock.uptimeMillis();
+        syntheticTapUntil = now + 400L;
+        float x = rect.centerX();
+        float y = rect.centerY();
+        try {
+            dispatch(decor, now, now, MotionEvent.ACTION_DOWN, x, y);
+            dispatch(decor, now, now + 45L, MotionEvent.ACTION_UP, x, y);
+            return true;
+        } catch (Throwable error) {
+            LogBook.w("comment tap dispatch failed", error);
+            return false;
+        }
+    }
+
+    private static void dispatch(View view, long downTime, long eventTime,
+                                 int action, float x, float y) {
+        MotionEvent event = MotionEvent.obtain(downTime, eventTime, action, x, y, 0);
+        try {
+            event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
+            view.dispatchTouchEvent(event);
+        } finally {
+            event.recycle();
+        }
+    }
+
+    private static boolean isSyntheticTapActive() {
+        return SystemClock.uptimeMillis() < syntheticTapUntil;
+    }
+
     static void armContentFilter(long delayMs) {
         long now = SystemClock.uptimeMillis();
         contentCheckNotBefore = now + delayMs;
@@ -1807,7 +2124,13 @@ final class ImmersiveUi {
 
         FeedContentTracker.Snapshot model = FeedContentTracker.current(decor);
         lastContentAid = model == null ? null : model.aid;
+        PlaybackState.setContentAvailable(model != null);
+        if (model == null) {
+            // 离开信息流（搜索页、个人页等）后不要留下上次的图文标记。
+            PlaybackState.setPhotoContent(false);
+        }
         if (model != null) {
+            PlaybackState.setPhotoContent(model.photoContent);
             if (PlaybackState.clearUserPauseForContentChange(model.aid)) {
                 transitionBoostUntil = Math.max(
                         transitionBoostUntil,
@@ -1927,8 +2250,25 @@ final class ImmersiveUi {
 
     private static boolean filterCurrentItem(View decor, String reason) {
         long now = SystemClock.uptimeMillis();
+        if (now < filterSuspendedUntil) {
+            LogBook.d("[Filter] filterCurrentItem skipped: suspended");
+            return false;
+        }
         if (FeedNavigator.isRunning() || now - lastFilteredSwipeAt < 1_500L) {
             LogBook.d("[Filter] filterCurrentItem skipped: running or debounce");
+            return false;
+        }
+        // Safety valve: a mis-classified batch must never turn the whole feed into a
+        // slideshow. Six skips inside 20s suspends filtering for a minute.
+        if (now - filterBurstStart > 20_000L) {
+            filterBurstStart = now;
+            filterBurstCount = 0;
+        }
+        if (++filterBurstCount > 6) {
+            filterSuspendedUntil = now + 60_000L;
+            LogBook.w("filter suspended for 60s after " + filterBurstCount
+                    + " consecutive skips");
+            filterBurstCount = 0;
             return false;
         }
         if (!FeedNavigator.moveToNext(decor, FeedNavigator.reasonForFilter(reason))) {

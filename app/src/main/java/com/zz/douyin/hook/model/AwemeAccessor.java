@@ -433,62 +433,6 @@ public final class AwemeAccessor {
         return "";
     }
 
-    public static List<FeedContentTracker.PlayUrl> resolvePlayUrls(Object video) {
-        if (video == null) {
-            return Collections.emptyList();
-        }
-        List<FeedContentTracker.PlayUrl> urls = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        appendPlayUrls(urls, seen, video, "play_addr");
-        appendPlayUrls(urls, seen, video, "play_addr_h264");
-        appendPlayUrls(urls, seen, video, "play_addr_bytevc1");
-        return urls.isEmpty()
-                ? Collections.emptyList()
-                : Collections.unmodifiableList(urls);
-    }
-
-    private static void appendPlayUrls(
-            List<FeedContentTracker.PlayUrl> output,
-            Set<String> seen,
-            Object video,
-            String source
-    ) {
-        Object address = readSerializedField(video, source);
-        if (address == null) {
-            return;
-        }
-        Class<?> addressType = address.getClass();
-        Object rawUrls = invokeNoArg(addressType, address, "getUrlList");
-        if (!(rawUrls instanceof List<?>)) {
-            rawUrls = readField(addressType, address, "urlList");
-        }
-        if (!(rawUrls instanceof List<?> candidates)) {
-            return;
-        }
-
-        appendUrlsWithScheme(output, seen, candidates, source, "https://");
-        appendUrlsWithScheme(output, seen, candidates, source, "http://");
-    }
-
-    private static void appendUrlsWithScheme(
-            List<FeedContentTracker.PlayUrl> output,
-            Set<String> seen,
-            List<?> candidates,
-            String source,
-            String scheme
-    ) {
-        for (Object candidate : candidates) {
-            if (candidate == null) {
-                continue;
-            }
-            String url = candidate.toString().trim();
-            if (url.regionMatches(true, 0, scheme, 0, scheme.length())
-                    && seen.add(url)) {
-                output.add(new FeedContentTracker.PlayUrl(url, source));
-            }
-        }
-    }
-
     private static Field findSerializedField(Class<?> type, String serializedName) {
         synchronized (SERIALIZED_FIELDS) {
             Map<String, Field> cached = SERIALIZED_FIELDS.computeIfAbsent(

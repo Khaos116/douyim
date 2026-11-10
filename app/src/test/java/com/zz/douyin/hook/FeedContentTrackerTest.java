@@ -7,13 +7,22 @@ import static org.junit.Assert.assertTrue;
 import com.google.gson.annotations.SerializedName;
 import com.zz.douyin.FilterPreferences;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public final class FeedContentTrackerTest {
+    @Before
+    public void resetQualityPreference() throws Exception {
+        configurePreferences(null);
+    }
+
     @Test
     public void typeTwoWithPlaceholderVideoIsFiltered() throws Exception {
         FakeAweme aweme = videoAweme(2);
@@ -679,6 +688,151 @@ public final class FeedContentTrackerTest {
         assertFalse(snapshot(videoAweme(0)).isPhoto());
     }
 
+    @Test
+    public void photoPostImagesExposeWatermarkFreeUrls() throws Exception {
+        FakeAweme aweme = videoAweme(2);
+        aweme.video = null;
+        aweme.images = List.of(
+                new FakeImage(List.of("https://p3.douyinpic.com/a.jpeg")),
+                new FakeImage(List.of("https://p3.douyinpic.com/b.jpeg"))
+        );
+
+        FeedContentTracker.Snapshot snapshot = snapshot(aweme);
+        List<FeedContentTracker.ImageUrl> urls = snapshot.imageUrls();
+
+        assertEquals(2, urls.size());
+        assertEquals("https://p3.douyinpic.com/a.jpeg", urls.get(0).primary());
+        assertEquals("https://p3.douyinpic.com/b.jpeg", urls.get(1).primary());
+        assertTrue(snapshot.hasImages());
+    }
+
+    @Test
+    public void imageInfosPreferLargeImageOverThumbnail() throws Exception {
+        FakeAweme aweme = videoAweme(2);
+        aweme.video = null;
+        aweme.images = Collections.emptyList();
+        aweme.imageInfos = List.of(new FakeImageInfo(
+                new FakeUrlModel(List.of("https://p3.douyinpic.com/large.jpeg")),
+                new FakeUrlModel(List.of("https://p3.douyinpic.com/thumb.jpeg"))
+        ));
+
+        List<FeedContentTracker.ImageUrl> urls = snapshot(aweme).imageUrls();
+
+        assertEquals(1, urls.size());
+        assertEquals("https://p3.douyinpic.com/large.jpeg", urls.get(0).primary());
+    }
+
+    @Test
+    public void watermarkedDownloadUrlsAreIgnoredWhenDisplayUrlsExist() throws Exception {
+        FakeAweme aweme = videoAweme(2);
+        aweme.video = null;
+        FakeImage image = new FakeImage(List.of("https://p3.douyinpic.com/clean.jpeg"));
+        image.downloadUrlList = List.of("https://p3.douyinpic.com/watermark.jpeg");
+        aweme.images = List.of(image);
+
+        List<FeedContentTracker.ImageUrl> urls = snapshot(aweme).imageUrls();
+
+        assertEquals(1, urls.size());
+        assertEquals("https://p3.douyinpic.com/clean.jpeg", urls.get(0).primary());
+    }
+
+    @Test
+    public void ordinaryVideoHasNoImageUrls() throws Exception {
+        FeedContentTracker.Snapshot snapshot = snapshot(videoAweme(0));
+
+        assertFalse(snapshot.hasImages());
+        assertTrue(snapshot.imageUrls().isEmpty());
+    }
+
+    @Test
+    public void pinnedQualityPutsTargetGearFirst() throws Exception {
+        configurePreferences("540");
+
+        FeedContentTracker.Snapshot snapshot = snapshot(gearVideoAweme());
+
+        assertEquals("bit_rate:540p", snapshot.playUrls.get(0).source);
+        assertEquals("https://example.invalid/540.mp4", snapshot.playUrls.get(0).url);
+        assertEquals("play_addr", snapshot.playUrls.get(1).source);
+        assertEquals("https://example.invalid/default.mp4", snapshot.playUrls.get(1).url);
+        assertEquals("540p", snapshot.downloadQualityLabel());
+    }
+
+    @Test
+    public void maxQualityPicksHighestGear() throws Exception {
+        configurePreferences(FilterPreferences.QUALITY_MAX);
+
+        FeedContentTracker.Snapshot snapshot = snapshot(gearVideoAweme());
+
+        assertEquals("bit_rate:1080p", snapshot.playUrls.get(0).source);
+        assertEquals("1080p", snapshot.downloadQualityLabel());
+    }
+
+    @Test
+    public void autoQualityKeepsOriginalOrder() throws Exception {
+        configurePreferences(FilterPreferences.QUALITY_AUTO);
+
+        FeedContentTracker.Snapshot snapshot = snapshot(gearVideoAweme());
+
+        assertEquals("play_addr", snapshot.playUrls.get(0).source);
+        assertTrue(snapshot.downloadQualityLabel().isEmpty());
+    }
+
+    @Test
+    public void missingTargetGearFallsBackToLargestBelow() throws Exception {
+        configurePreferences("800");
+
+        FeedContentTracker.Snapshot snapshot = snapshot(gearVideoAweme());
+
+        assertEquals("bit_rate:720p", snapshot.playUrls.get(0).source);
+    }
+
+    @Test
+    public void targetBelowEveryGearPicksSmallestAbove() throws Exception {
+        configurePreferences("200");
+
+        FeedContentTracker.Snapshot snapshot = snapshot(gearVideoAweme());
+
+        assertEquals("bit_rate:540p", snapshot.playUrls.get(0).source);
+    }
+
+    private static FakeAweme gearVideoAweme() {
+        FakeAweme aweme = videoAweme(0);
+        aweme.video = new FakeGearVideo(
+                List.of("https://example.invalid/default.mp4"),
+                List.of(
+                        new FakeBitRate(
+                                "normal_1080_0",
+                                2_000_000L,
+                                List.of("https://example.invalid/1080.mp4")
+                        ),
+                        new FakeBitRate(
+                                "adapt_lower_720_0",
+                                1_000_000L,
+                                List.of("https://example.invalid/720.mp4")
+                        ),
+                        new FakeBitRate(
+                                "normal_540_0",
+                                800_000L,
+                                List.of("https://example.invalid/540.mp4")
+                        )
+                )
+        );
+        return aweme;
+    }
+
+    private static void configurePreferences(String quality) throws Exception {
+        Map<String, String> values = new HashMap<>();
+        if (quality != null) {
+            values.put(FilterPreferences.KEY_VIDEO_QUALITY, quality);
+        }
+        Method method = FeedContentTracker.class.getDeclaredMethod(
+                "configurePreferences",
+                android.content.SharedPreferences.class
+        );
+        method.setAccessible(true);
+        method.invoke(null, new FakePreferences(values));
+    }
+
     private static FakeAweme videoAweme(int awemeType) {
         FakeAweme aweme = new FakeAweme();
         aweme.aid = "test-" + awemeType;
@@ -790,6 +944,100 @@ public final class FeedContentTrackerTest {
         }
     }
 
+    public static final class FakeGearVideo {
+        @SerializedName("play_addr")
+        public final FakeUrlModel playAddress;
+
+        @SerializedName("bit_rate")
+        public final List<FakeBitRate> bitRates;
+
+        FakeGearVideo(List<String> urls, List<FakeBitRate> bitRates) {
+            this.playAddress = new FakeUrlModel(urls);
+            this.bitRates = bitRates;
+        }
+    }
+
+    public static final class FakeBitRate {
+        @SerializedName("gear_name")
+        public final String gearName;
+
+        @SerializedName("bit_rate")
+        public final long bitrate;
+
+        @SerializedName("play_addr")
+        public final FakeUrlModel playAddress;
+
+        FakeBitRate(String gearName, long bitrate, List<String> urls) {
+            this.gearName = gearName;
+            this.bitrate = bitrate;
+            this.playAddress = new FakeUrlModel(urls);
+        }
+    }
+
+    public static final class FakePreferences implements android.content.SharedPreferences {
+        private final Map<String, String> values;
+
+        FakePreferences(Map<String, String> values) {
+            this.values = values;
+        }
+
+        @Override
+        public Map<String, ?> getAll() {
+            return new HashMap<>(values);
+        }
+
+        @Override
+        public String getString(String key, String defValue) {
+            String value = values.get(key);
+            return value == null ? defValue : value;
+        }
+
+        @Override
+        public Set<String> getStringSet(String key, Set<String> defValues) {
+            return defValues;
+        }
+
+        @Override
+        public int getInt(String key, int defValue) {
+            return defValue;
+        }
+
+        @Override
+        public long getLong(String key, long defValue) {
+            return defValue;
+        }
+
+        @Override
+        public float getFloat(String key, float defValue) {
+            return defValue;
+        }
+
+        @Override
+        public boolean getBoolean(String key, boolean defValue) {
+            return defValue;
+        }
+
+        @Override
+        public boolean contains(String key) {
+            return values.containsKey(key);
+        }
+
+        @Override
+        public android.content.SharedPreferences.Editor edit() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void registerOnSharedPreferenceChangeListener(
+                OnSharedPreferenceChangeListener listener) {
+        }
+
+        @Override
+        public void unregisterOnSharedPreferenceChangeListener(
+                OnSharedPreferenceChangeListener listener) {
+        }
+    }
+
     public static final class FakeUrlModel {
         private final List<String> urls;
 
@@ -799,6 +1047,31 @@ public final class FeedContentTrackerTest {
 
         public List<String> getUrlList() {
             return urls;
+        }
+    }
+
+    public static final class FakeImage {
+        @SerializedName("url_list")
+        public List<String> urlList;
+
+        @SerializedName("download_url_list")
+        public List<String> downloadUrlList;
+
+        FakeImage(List<String> urls) {
+            this.urlList = urls;
+        }
+    }
+
+    public static final class FakeImageInfo {
+        @SerializedName("label_large")
+        public FakeUrlModel labelLarge;
+
+        @SerializedName("label_thumb")
+        public FakeUrlModel labelThumb;
+
+        FakeImageInfo(FakeUrlModel large, FakeUrlModel thumb) {
+            this.labelLarge = large;
+            this.labelThumb = thumb;
         }
     }
 }

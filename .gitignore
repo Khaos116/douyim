@@ -14,3 +14,9 @@ APK/
 /docs/my/*.apk
 /docs/my/dyhelper-src*/
 # 注意：本仓库签名密钥公开，xqe.jks 与 keystore.properties 直接进 Git
+
+# WorkBuddy workspace data (analysis inputs, screenshots, local scripts)
+/.workbuddy/
+
+# 单测运行 LogBook 时在项目下产生的运行日志目录
+/app/Android/

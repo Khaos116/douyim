@@ -106,12 +106,13 @@ public final class PublishInfoTest {
         FeedContentTracker.Snapshot ad = new FeedContentTracker.Snapshot(
                 "ad-1", 0, true,
                 true, false, false,
-                0, 0, false, false, null, false, false, false,
+                null, null,
+                0, 0, false, false, null, false, false, false, false,
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
                 1758000000000L, -1L, "四川", "春熙路", "", "",
                 "", "", false,
-                null, Collections.emptyList());
+                null, Collections.emptyList(), "none");
 
         assertNull(PublishInfo.composeText(ad, true, true));
     }
@@ -215,11 +216,12 @@ public final class PublishInfoTest {
         return new FeedContentTracker.Snapshot(
                 "aid-1", 0, true,
                 false, false, false,
-                0, 0, false, false, null, false, false, false,
+                null, null,
+                0, 0, false, false, null, false, false, false, false,
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
                 createTimeMs, durationMs, ipLabel, poiName, location, city,
                 "", "", false,
-                null, Collections.emptyList());
+                null, Collections.emptyList(), "none");
     }
 }

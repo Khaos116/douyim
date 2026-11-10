@@ -82,6 +82,15 @@ public final class DouyinModule extends XposedModule {
                 "player tracker",
                 () -> PlayerHooks.install(this, param.getClassLoader())
         );
+        installSubsystem(
+                "video quality guard",
+                () -> {
+                    SharedPreferences preferences = getRemotePreferences(
+                            com.zz.douyin.FilterPreferences.NAME
+                    );
+                    QualityHooks.install(this, param.getClassLoader(), preferences);
+                }
+        );
         LogBook.i("hook installation finished for " + param.getPackageName()
                 + ", module=" + moduleTag());
     }
