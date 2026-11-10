@@ -21,6 +21,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.zz.douyin.hook.compat.FeedNavigationCompat;
+import com.zz.douyin.hook.model.AwemeAccessor;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
@@ -1873,7 +1874,8 @@ final class ImmersiveUi {
                 LogBook.i("[Aweme] aid=" + model.aid
                         + " awemeType=" + model.awemeType
                         + " hostLive=" + model.hostLive
-                        + " risk=[" + model.riskFields + "]");
+                        + " risk=[" + AwemeAccessor.describeIntFields(model.riskModel)
+                        + "]");
                 LogBook.i("[PublishInfo] aid=" + model.aid
                         + " ipLabel=" + model.ipLabel
                         + " poi=" + model.poiName

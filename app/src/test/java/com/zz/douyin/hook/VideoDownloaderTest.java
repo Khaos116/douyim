@@ -64,7 +64,7 @@ public final class VideoDownloaderTest {
         return new FeedContentTracker.Snapshot(
                 aid, 0, true,
                 false, false, false,
-                0, 0, false, false, "none", false, false, false,
+                0, 0, false, false, null, false, false, false,
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
                 -1L, -1L, "", "", "", "",

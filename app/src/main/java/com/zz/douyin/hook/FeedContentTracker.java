@@ -307,7 +307,7 @@ public final class FeedContentTracker {
                 imageInfoCount,
                 live,
                 hostLive,
-                AwemeAccessor.describeIntFields(riskModel),
+                riskModel,
                 hostImage,
                 hostMultiImage,
                 slides,
@@ -343,8 +343,12 @@ public final class FeedContentTracker {
         final int imageInfoCount;
         final boolean live;
         final boolean hostLive;
-        /** Diagnostics only: int fields of the host risk model, if any. */
-        final String riskFields;
+        /**
+         * Diagnostics only: the host risk model as read, never inspected here.
+         * Field walking belongs in the once-per-aweme logging branch, because
+         * a snapshot is rebuilt several times a second.
+         */
+        final Object riskModel;
         final boolean hostImage;
         final boolean hostMultiImage;
         final boolean slides;
@@ -378,7 +382,7 @@ public final class FeedContentTracker {
                 int imageInfoCount,
                 boolean live,
                 boolean hostLive,
-                String riskFields,
+                Object riskModel,
                 boolean hostImage,
                 boolean hostMultiImage,
                 boolean slides,
@@ -411,7 +415,7 @@ public final class FeedContentTracker {
             this.imageInfoCount = imageInfoCount;
             this.live = live;
             this.hostLive = hostLive;
-            this.riskFields = riskFields;
+            this.riskModel = riskModel;
             this.hostImage = hostImage;
             this.hostMultiImage = hostMultiImage;
             this.slides = slides;

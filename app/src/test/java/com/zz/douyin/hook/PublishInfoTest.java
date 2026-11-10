@@ -106,7 +106,7 @@ public final class PublishInfoTest {
         FeedContentTracker.Snapshot ad = new FeedContentTracker.Snapshot(
                 "ad-1", 0, true,
                 true, false, false,
-                0, 0, false, false, "none", false, false, false,
+                0, 0, false, false, null, false, false, false,
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
                 1758000000000L, -1L, "四川", "春熙路", "", "",
@@ -215,7 +215,7 @@ public final class PublishInfoTest {
         return new FeedContentTracker.Snapshot(
                 "aid-1", 0, true,
                 false, false, false,
-                0, 0, false, false, "none", false, false, false,
+                0, 0, false, false, null, false, false, false,
                 "", "",
                 -1L, -1L, -1L, -1L, -1L,
                 createTimeMs, durationMs, ipLabel, poiName, location, city,
