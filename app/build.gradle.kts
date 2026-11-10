@@ -11,7 +11,7 @@ plugins {
 }
 
 // 应用版本集中定义：defaultConfig 与 APK 文件名共用，改一处即可
-val appVersionName = "1.5.1"
+val appVersionName = "1.7.5"
 
 // 编译时间戳（北京时间）：APK 归档文件名与 BuildConfig 共用，
 // 界面/日志/APK 文件名三处时间戳完全一致，方便对版本。
@@ -44,7 +44,7 @@ android {
         applicationId = "com.zz.douyin"
         minSdk = 28
         targetSdk = 35
-        versionCode = 17
+        versionCode = 27
         versionName = appVersionName
         buildConfigField("String", "BUILD_TIME", "\"$buildTimestamp\"")
     }
