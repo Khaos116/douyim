@@ -131,8 +131,19 @@ public final class FeedContentTracker {
         int centerY = decorVisible.centerY();
         Rect visible = new Rect();
         long now = SystemClock.uptimeMillis();
+        if (selected != null && !isPanelOnDecor(selected, pagerField, decor)) {
+            selected = null;
+        }
         for (Object panel : panels) {
             if (panel == null || !expectedPanelClass.isInstance(panel)) {
+                continue;
+            }
+            if (selected != null && panel != selected) {
+                // The largest-visible-area fallback is only safe when the
+                // page-selection hook never reported a panel: during a tab
+                // swipe a neighbour tab's panel also covers the screen centre
+                // and would hand back another feed's aweme (often a live
+                // card), filtering the video the user is actually watching.
                 continue;
             }
             try {
@@ -173,6 +184,16 @@ public final class FeedContentTracker {
         return bestAweme == null ? null : snapshot(bestAweme, filterSettings);
     }
 
+    private static boolean isPanelOnDecor(Object panel, Field pagerField, View decor) {
+        try {
+            return pagerField.get(panel) instanceof View pager
+                    && pager.isAttachedToWindow()
+                    && pager.getRootView() == decor;
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            return false;
+        }
+    }
+
     private static boolean isEffectivelyVisible(View view, View decor) {
         View current = view;
         while (current != null) {
@@ -209,7 +230,7 @@ public final class FeedContentTracker {
         int awemeType = model.awemeType();
         boolean ad = model.isAd();
         Object rawAd = model.rawAd();
-        boolean live = model.isLive();
+        boolean hostLive = model.isLive();
         boolean hostImage = model.isImage();
         boolean hostMultiImage = model.isMultiImage();
         boolean slides = model.isSlides();
@@ -220,6 +241,7 @@ public final class FeedContentTracker {
         int imageCount = AwemeAccessor.collectionSize(images);
         int imageInfoCount = AwemeAccessor.collectionSize(imageInfos);
         List<PlayUrl> playUrls = AwemeAccessor.resolvePlayUrls(video);
+        boolean live = Snapshot.isLiveModel(hostLive, awemeType, !playUrls.isEmpty());
         String title = model.title();
         String description = model.description();
         StatisticsAccessor statistics = new StatisticsAccessor(model.statistics());
@@ -252,16 +274,14 @@ public final class FeedContentTracker {
             if (activeSettings.skipLives) {
                 reason = "live model";
             }
-        } else if (photo || awemeType == 0xA3 || video == null) {
+        } else if (photo || awemeType == 0xA3 || article != null) {
             if (activeSettings.skipImages) {
                 if (awemeType == 0xA3) {
                     reason = "long article model";
                 } else if (photo) {
                     reason = "photo article model";
-                } else if (article != null) {
-                    reason = "article model";
                 } else {
-                    reason = "non-video model";
+                    reason = "article model";
                 }
             }
         } else if (activeSettings.skipLongVideos
@@ -411,6 +431,19 @@ public final class FeedContentTracker {
 
         boolean shouldFilter() {
             return filterReason != null;
+        }
+
+        /**
+         * The host {@code isLive()} is also true for replay / third-party live
+         * types (102 and friends), which are ordinary playable videos. Only
+         * type 101 is trusted unconditionally; anything else that exposes a
+         * play url is treated as a normal video, so it is never live-filtered.
+         */
+        static boolean isLiveModel(boolean hostLive, int awemeType, boolean hasPlayUrl) {
+            if (!hostLive) {
+                return false;
+            }
+            return awemeType == 101 || !hasPlayUrl;
         }
 
         static boolean isPhotoModel(

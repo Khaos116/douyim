@@ -1826,6 +1826,8 @@ final class ImmersiveUi {
                 if (!model.aid.equals(lastLiveRecommendationCheckAid)) {
                     lastLiveRecommendationCheckAid = model.aid;
                     LogBook.i("[Filter] live check aid=" + model.aid
+                            + " awemeType=" + model.awemeType
+                            + " hasVideo=" + model.hasVideo
                             + " recommendationTab=" + recommendationTab
                             + " activity=" + (activityName == null ? "?" : activityName)
                             + " " + TabDetector.diagnoseRecommendationTab(decor));

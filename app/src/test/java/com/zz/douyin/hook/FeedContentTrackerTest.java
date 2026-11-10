@@ -191,6 +191,88 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
+    public void liveReplayWithPlayUrlIsNotLiveFiltered() {
+        FakeAweme replay = videoAweme(102);
+        replay.hostLive = true;
+        replay.video = new FakeVideo(List.of("https://example.invalid/replay.mp4"));
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                replay,
+                new FilterPreferences.Values(
+                        false, false, true, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+        );
+
+        assertFalse(snapshot.live);
+        assertFalse(snapshot.shouldFilter());
+    }
+
+    @Test
+    public void liveTypeStaysFilteredEvenWithPlayUrl() {
+        FakeAweme live = videoAweme(101);
+        live.hostLive = true;
+        live.video = new FakeVideo(List.of("https://example.invalid/live.flv"));
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                live,
+                new FilterPreferences.Values(
+                        false, false, true, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+        );
+
+        assertTrue(snapshot.live);
+        assertEquals("live model", snapshot.filterReason);
+    }
+
+    @Test
+    public void hostLiveWithoutPlayUrlStaysFiltered() {
+        FakeAweme live = videoAweme(0);
+        live.hostLive = true;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                live,
+                new FilterPreferences.Values(
+                        false, false, true, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+        );
+
+        assertTrue(snapshot.live);
+        assertEquals("live model", snapshot.filterReason);
+    }
+
+    @Test
+    public void missingVideoFieldAloneIsNotImageFiltered() {
+        FakeAweme aweme = videoAweme(0);
+        aweme.video = null;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                aweme,
+                new FilterPreferences.Values(
+                        false, true, false, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+        );
+
+        assertFalse(snapshot.shouldFilter());
+    }
+
+    @Test
+    public void articleInfoStillImageFiltered() {
+        FakeAweme aweme = videoAweme(0);
+        aweme.video = null;
+        aweme.articleInfo = new Object();
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                aweme,
+                new FilterPreferences.Values(
+                        false, true, false, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+        );
+
+        assertTrue(snapshot.shouldFilter());
+        assertEquals("article model", snapshot.filterReason);
+    }
+
+    @Test
     public void videoSettingFiltersOrdinaryVideo() {
         FakeAweme aweme = videoAweme(0);
 
@@ -571,6 +653,7 @@ public final class FeedContentTrackerTest {
         public Object articleInfo;
         public List<Object> images;
         public List<Object> imageInfos;
+        public boolean hostLive;
         public boolean hostImage;
         public boolean hostMultiImage;
         public Object rawAd;
@@ -595,6 +678,10 @@ public final class FeedContentTrackerTest {
 
         public Object getPoiStruct() {
             return poiStruct;
+        }
+
+        public boolean isLive() {
+            return hostLive;
         }
 
         public boolean isImage() {
