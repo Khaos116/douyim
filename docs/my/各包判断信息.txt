@@ -1,0 +1,177 @@
+三方模块内容判断逻辑调查记录
+================================
+
+调查日期：2026-11-10
+调查目的：核对本项目（抖仙人 fork，com.zz.douyin）对「直播 / 图文 / 自动下一条」的判断是否正确。
+样本：docs/my/DYHelper1.9.0.apk、docs/my/Ｋｅｖｉｎ_102101.apk、docs/my/Xyner-Nova-1.0.0.apk
+工具：jadx（C:/Users/USER/.local/share/jadx/bin/jadx，参数 --no-res --no-debug-info）
+反编译产物（临时目录，会被清理，需要时重新反编译）：
+  C:\Users\USER\AppData\Local\Temp\claude\b3e0ff31e7fbe976\933f775c-6c47-49c5-b9fe-315ec1c9d9d4\scratchpad\{kevin,dyhelper190,xyner}
+
+注意：以下所有行号均指上述 jadx 反编译产物中的 .java 文件行号，不是原始源码行号；重新反编译后行号可能漂移，应按方法名或字符串定位。
+
+
+1. 三个样本的可读性
+-------------------
+
+1.1 Ｋｅｖｉｎ_102101.apk —— 可读，主要证据来源
+  - 主 Hook 类：sources/kevin/fun/hook/DYHook.java（约 38 万行，控制流扁平化：方法体被改写成
+    `int i = 1616; while(true){ i ^= 1633; switch(i){...} }` 的状态机，但常量和比较值都是明文，可以人工解）。
+  - 字符串被搬进一批 CNNNN.java 壳类（分散在 androidx/* 包路径下），每个字符串对应一个
+    `public static String mNNNN()` 方法，带恒真/恒假的哨兵判断。通过
+    `grep -rn '"目标字符串"'` 找到壳方法，再 `grep -rn "CNNNN.mNNNN()"` 找调用点，可以反查业务代码。
+  - 另有 XhsHook.java（小红书）等。
+
+1.2 DYHelper1.9.0.apk —— 判断逻辑读不到
+  - classes.dex 里只有 com/example/dyhelper/ui/*（设置界面）、com/google/flatbuffers、kotlin 运行时。
+  - 真正的 Hook 逻辑在加密负载里：
+      assets/dyhelper/payload-0.dydx  4489734 字节
+      assets/dyhelper/payload-1.dydx  4496082 字节
+      assets/dyhelper/payload-2.dydx  3453186 字节
+      assets/dyhelper/daily_token.token、assets/native_attest.dyat、assets/native_init
+    由 native 运行时解密加载：lib/{arm64-v8a,armeabi-v7a}/libdy_runtime.so，
+    另带 libdexkit.so（DexKit 搜索）、libblacklist_verify.so、libvideo_speed_patch.so、libgraphics-core.so。
+  - 结论：无法取得 DYHelper 的实际判断逻辑。只能从设置文案推断它具备的能力：
+      「按广告、直播、图文、关键词、UID、时长和点赞数过滤内容。」
+      「作品播放完成后自动进入下一条，支持停留时长、触摸重新计时和评论区控制。」
+      「播放完成后自动切换下一个作品，可设置延迟。」
+      「控制合集、系列和短剧的原生自动下一集播放行为。」
+      「播放完成自动暂停」「TAB 过滤」「发现流过滤」「底栏 Tab 过滤」「个人主页 Tab 过滤」
+    即：模块侧「播放完成后自动切换」与宿主「原生自动下一集」是两套并存的开关。
+  - 若后续要读它的逻辑，需要跑它的 native 运行时解密 payload，成本和风险都高，本轮没做。
+
+1.3 Xyner-Nova-1.0.0.apk —— 没有可比的 feed 过滤逻辑
+  - R8 重命名（类名如 y5/l6.java、g5/z0.java）+ 字符串加密（b4.p1.decrypt(byte[], byte[])）。
+  - 全包搜索 直播/图文 过滤、自动连播、播放完成、下一条 等关键词均无命中。
+  - 有价值的只有下载相关的反射绑定模型 sources/y5/l6.java，其 toString 暴露了字段语义：
+      Binding(awemeType=<Class>, videoField=, video=, imageLists=, imageGearList=,
+              gearedImagesField=, image=, withoutWatermarkField=, liveReplayField=,
+              videoControl=, status=)
+    其中 liveReplayField 表明它在下载侧单独处理「直播回放」字段，和普通视频区分。
+  - 其余为微信/IM/朋友圈相关功能，与本项目无关。
+
+
+2. Kevin 的判断逻辑（明文证据）
+-------------------------------
+
+2.1 类型取值
+  DYHook.getAwemeTypeSafe(Object)        —— DYHook.java:98528
+    先读字段 "awemeType"（字符串壳：dev/rikka/ndk/thirdparty/libcxx/C0068.java:274），
+    抛异常时退回调用 getter，再不行返回哨兵 -152。
+
+  重要：Kevin 全包没有 "isLive" / "isImage" / "isSlides" 这类宿主布尔方法名字符串。
+  与内容分类相关的名字字符串只有 "awemeType"、"imageInfos"、"getVideo"、"play_addr"、
+  "play_addr_265"、"play_addr_bytevc1"、"play_addr_h264"（后几个用于下载）。
+  也就是说 Kevin 的内容分类 **完全基于 awemeType 整数查表**，不信任宿主布尔方法。
+
+2.2 类型表（全部为 private boolean 方法，纯整数比较）
+  isLiveAwemeType(int)        DYHook.java:291732   直播：41, 101, 105
+  isImageAwemeType(int)       DYHook.java:291652   图文：2, 68(0x44)
+  isAiAwemeType(int)          DYHook.java:290759   AIGC：162, 163(0xA3), 170, 200
+  isEcommerceAwemeType(int)   DYHook.java:291478   电商：51, 52, 61, 104, 112, 140, 145, 147,
+                                                        3002, 4000, 4008, 9001
+      （源码里 112 写成 kevin.fun.R.styleable.AppCompatTheme_toolbarNavigationButtonStyle
+        = 0x70 = 112，是用资源常量混淆字面量，见 sources/kevin/fun/R.java:1974）
+  isAdAwemeEnhanced(Object,int) DYHook.java:290634  广告：字段 "isAd"（壳 androidx/viewpager/C0062.java:238）
+                                                    + 字段 "awemeRawAd"
+                                                      （壳 androidx/emoji2/viewsintegration/C0024.java:522）
+                                                    + 类型比对
+
+2.3 开关键名（sources/kevin/fun/hook/webdav/WebDAVConfig.java:75 的 BOOL_KEYS）
+  内容过滤相关：shield_live、shield_image、shield_ecommerce、shield_ad、shield_unknown、
+                shield_aigc、shield_aigc_suspect、filter_duration_enable、filter_digg_enable、
+                block_keyword_enable
+  播放相关：auto_play_next、fullscreen_play、disable_new_long_press_play、video_speed_enable
+  注意 shield_unknown：不在任何已知表里的 awemeType 单独成桶，可单独选择是否屏蔽。
+  这是「数据诚实」的一种做法——未知类型不硬塞进某个已知桶。
+
+2.4 过滤时机：在接口响应解码时删 item（与本项目架构的根本差异）
+  hookProtobufDecode(XC_LoadPackage.LoadPackageParam)   DYHook.java:189864
+  getItemsFromResponse(Object)                          DYHook.java:102947
+  类型判断在该 Hook 内通过反射分发器调用：
+    DYHook.java:190841 m7776(Object,int) -> DYHook.java:384050 m4597(Object,int) -> isLiveAwemeType
+    DYHook.java:375029 -> isImageAwemeType
+  相关日志字符串：
+    「【Kevin】[视频过滤] Hook Protobuf 解码失败: 」
+    「【Kevin】[视频过滤] 无法从响应中获取 items 列表」
+    「【Kevin】[视频过滤] 错误详情: 」
+  含义：Kevin 在 feed 接口响应被解码成对象列表时就把命中的 item 从列表里移除，
+  被过滤的内容从未进入 RecyclerView。因此不存在「对已显示的当前项判断错 → 误划走正在看的视频」
+  这一类问题，也不需要当前项快照、不需要防抖、不需要确认次数。
+
+2.5 自动连播
+  设置项文案「自动连播」（壳 kevin/fun/hook/C0129.java:418 区域），键名 auto_play_next。
+  实现：把 DexKit 找到的宿主类名存进偏好键 "AUTO_PLAY_CLASS"
+        （壳 androidx/lifecycle/livedata/C0042.java:116），
+        使用点 DYHook.java:121761 与 DYHook.java:144587（反射遍历该类的字段与方法后改其行为）。
+  含义：Kevin 走的是 **宿主自己的连播实现**，不合成滑动手势。
+
+
+3. 与本项目现有实现的对比
+-------------------------
+
+本项目相关代码：
+  app/src/main/java/com/zz/douyin/hook/FeedContentTracker.java   （快照与分类策略）
+  app/src/main/java/com/zz/douyin/hook/model/AwemeAccessor.java  （反射取值）
+  app/src/main/java/com/zz/douyin/hook/ImmersiveUi.java          （过滤决策与触发）
+  app/src/main/java/com/zz/douyin/hook/FeedNavigator.java        （唯一下一条入口，合成上滑）
+
+截至 commit 461c63e 的判断方式：
+  直播：Snapshot.isLiveModel(hostLive, awemeType, hasPlayUrl)
+        = 宿主 isLive() 为真 且 (awemeType == 101 或 无可播放地址)
+  图文：isPhotoModel = isImage() || isMultiImage() || isSlides()
+                       || awemeType == 2 || awemeType == 0x44
+                       || imageCount > 0 || imageInfoCount > 0
+        另外 awemeType == 0xA3 被标为 "long article model"，归入图文过滤
+  自动下一条：PlayerHooks 播放完成 → FeedNavigator.moveToNext() 合成上滑手势
+
+对比结论（四处缺陷）：
+
+  缺陷 1：直播类型表不全，且仍依赖宿主 isLive()
+    Kevin 的直播表是 {41, 101, 105}，不依赖 isLive()。
+    我们漏掉 41 和 105 中宿主 isLive() 返回 false 的情况；
+    同时把判断挂在 isLive() 上，正是 2026-11-10 那次「普通视频被当直播跳过」的来源之一
+    （宿主 isLive() 对回放/三方直播类型同样为真）。
+
+  缺陷 2：0xA3(163) 的语义很可能标错
+    我们标成 "long article model"（长文），归入图文过滤；
+    Kevin 把 162/163/170/200 列为 AIGC。两边至少一个标错，
+    而用户侧表现是「开了图文过滤，AIGC 内容被吃掉」或反之。
+
+  缺陷 3：图文判断比 Kevin 宽得多
+    Kevin 只认 {2, 68}。我们额外用 isImage()/isMultiImage()/isSlides() 和
+    images/imageInfos 列表非空。普通视频若带封面图列表（images/imageInfos 非空）
+    会被我们当图文过滤掉——这是独立于缺陷 1 的另一个误跳来源。
+
+  缺陷 4：过滤时机是架构级根因，尚未解决
+    我们在「已显示的当前项」上判断再合成上滑，判断源 getCurrentAweme() 与屏幕内容之间
+    永远存在时序差和跨面板风险（2026-11-10 修的三处只是压低触发概率）。
+    Kevin 在响应解码期删 item，没有这个窗口。
+
+
+4. 建议的改造方向（尚未执行，需用户确认）
+-----------------------------------------
+
+  第 1 步（低风险、纯策略函数、可单测）：
+    分类改为 awemeType 查表为主、宿主布尔方法为辅。
+      直播 {41, 101, 105}；图文 {2, 68}；新增 AIGC 桶 {162, 163, 170, 200}（顺带修掉 0xA3 错标）；
+      images/imageInfos 仅在无可播放地址时作为辅助证据；
+      未知类型参考 Kevin 的 shield_unknown 单独成桶，默认不过滤。
+
+  第 2 步（根治，属新 Phase、新 Hook 点）：
+    把过滤前移到 feed 响应解码处（对应 Kevin 的 hookProtobufDecode 思路），
+    在 item 进入 RecyclerView 之前移除。需先定 Hook 目标、版本适配与失败兜底，
+    按 AGENTS.md 的 Phase 流程单独立项。
+
+
+5. 本轮调查的局限
+-----------------
+
+  - DYHelper 1.9.0 的 payload 未解密，其实际判断逻辑无证据，仅有设置文案推断。
+  - Kevin 的 hookProtobufDecode 已确认入口、item 列表获取与类型表，
+    未逐行跟完「从列表中移除 item」的具体调用。
+  - 类型值语义（41 与 105 究竟对应直播预览卡还是其它直播形态、163 是 AIGC 还是长文）
+    来自方法命名与查表位置的推断，没有真机数据印证。
+    建议在真机日志里打印 awemeType 实际值做一次确认
+    （ImmersiveUi 的 [Filter] live check 日志已在 commit 461c63e 加打 awemeType 与 hasVideo）。
+  - 反编译产物位于会被清理的临时目录，复查需按第 0 节命令重新反编译。

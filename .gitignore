@@ -10,7 +10,7 @@
 
 # 本地 Release 归档目录；对外发布件仍走 dist/（人工验证后拷贝）
 APK/
-# DYHelper APK 与反编译结果仅供本地参考，覆盖后续版本。
-/docs/my/DYHelper*.apk
+# 参考用三方 APK 与反编译结果仅供本地分析，不进仓库（结论写进 docs/my/各包判断信息.txt）。
+/docs/my/*.apk
 /docs/my/dyhelper-src*/
 # 注意：本仓库签名密钥公开，xqe.jks 与 keystore.properties 直接进 Git

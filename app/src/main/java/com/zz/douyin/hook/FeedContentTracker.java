@@ -241,7 +241,9 @@ public final class FeedContentTracker {
         int imageCount = AwemeAccessor.collectionSize(images);
         int imageInfoCount = AwemeAccessor.collectionSize(imageInfos);
         List<PlayUrl> playUrls = AwemeAccessor.resolvePlayUrls(video);
-        boolean live = Snapshot.isLiveModel(hostLive, awemeType, !playUrls.isEmpty());
+        boolean hasPlayUrl = !playUrls.isEmpty();
+        boolean live = Snapshot.isLiveModel(hostLive, awemeType, hasPlayUrl);
+        boolean aigc = Snapshot.isAigcModel(awemeType);
         String title = model.title();
         String description = model.description();
         StatisticsAccessor statistics = new StatisticsAccessor(model.statistics());
@@ -260,7 +262,8 @@ public final class FeedContentTracker {
         String authorClass = AwemeAccessor.simpleName(model.author());
         boolean poiFound = model.poi() != null;
         boolean photo = Snapshot.isPhotoModel(
-                hostImage, hostMultiImage, slides, awemeType, imageCount, imageInfoCount);
+                hostImage, hostMultiImage, slides, awemeType, imageCount, imageInfoCount,
+                hasPlayUrl);
         boolean advertisement = ad || rawAd != null;
         FilterPreferences.Values activeSettings =
                 settings == null ? FilterPreferences.defaults() : settings;
@@ -274,15 +277,13 @@ public final class FeedContentTracker {
             if (activeSettings.skipLives) {
                 reason = "live model";
             }
-        } else if (photo || awemeType == 0xA3 || article != null) {
+        } else if (aigc) {
+            if (activeSettings.skipAigc) {
+                reason = "aigc model";
+            }
+        } else if (photo || article != null) {
             if (activeSettings.skipImages) {
-                if (awemeType == 0xA3) {
-                    reason = "long article model";
-                } else if (photo) {
-                    reason = "photo article model";
-                } else {
-                    reason = "article model";
-                }
+                reason = photo ? "photo article model" : "article model";
             }
         } else if (activeSettings.skipLongVideos
                 && durationMs >= 0L
@@ -434,16 +435,35 @@ public final class FeedContentTracker {
         }
 
         /**
-         * The host {@code isLive()} is also true for replay / third-party live
-         * types (102 and friends), which are ordinary playable videos. Only
-         * type 101 is trusted unconditionally; anything else that exposes a
-         * play url is treated as a normal video, so it is never live-filtered.
+         * Content kind is decided by the host {@code awemeType} first; the
+         * tables mirror the ones the Kevin module uses (its own type tables
+         * were read from its APK, the code was not copied). Host booleans and
+         * image collections are only secondary evidence, because a normal
+         * video can carry a cover-image list and {@code isLive()} answers true
+         * for replay / third-party live types as well.
          */
-        static boolean isLiveModel(boolean hostLive, int awemeType, boolean hasPlayUrl) {
-            if (!hostLive) {
-                return false;
+        static final int[] LIVE_TYPES = {41, 101, 105};
+        static final int[] IMAGE_TYPES = {2, 0x44};
+        static final int[] AIGC_TYPES = {162, 163, 170, 200};
+
+        static boolean isTypeIn(int[] types, int awemeType) {
+            for (int type : types) {
+                if (type == awemeType) {
+                    return true;
+                }
             }
-            return awemeType == 101 || !hasPlayUrl;
+            return false;
+        }
+
+        static boolean isLiveModel(boolean hostLive, int awemeType, boolean hasPlayUrl) {
+            if (isTypeIn(LIVE_TYPES, awemeType)) {
+                return true;
+            }
+            return hostLive && !hasPlayUrl;
+        }
+
+        static boolean isAigcModel(int awemeType) {
+            return isTypeIn(AIGC_TYPES, awemeType);
         }
 
         static boolean isPhotoModel(
@@ -452,12 +472,17 @@ public final class FeedContentTracker {
                 boolean slides,
                 int awemeType,
                 int imageCount,
-                int imageInfoCount) {
+                int imageInfoCount,
+                boolean hasPlayUrl) {
+            if (isTypeIn(IMAGE_TYPES, awemeType)) {
+                return true;
+            }
+            if (hasPlayUrl) {
+                return false;
+            }
             return hostImage
                     || hostMultiImage
                     || slides
-                    || awemeType == 2
-                    || awemeType == 0x44
                     || imageCount > 0
                     || imageInfoCount > 0;
         }
@@ -469,7 +494,8 @@ public final class FeedContentTracker {
                     slides,
                     awemeType,
                     imageCount,
-                    imageInfoCount);
+                    imageInfoCount,
+                    hasDownloadUrl());
         }
 
         boolean hasDownloadUrl() {

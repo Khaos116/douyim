@@ -191,6 +191,54 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
+    public void liveTypeTableCoversFortyOneAndOneHundredFive() {
+        for (int type : new int[] {41, 101, 105}) {
+            FeedContentTracker.Snapshot snapshot = snapshot(
+                    videoAweme(type),
+                    new FilterPreferences.Values(
+                            false, false, true, false, "",
+                            false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+            );
+
+            assertTrue("type " + type, snapshot.live);
+            assertEquals("live model", snapshot.filterReason);
+        }
+    }
+
+    @Test
+    public void aigcTypesFilterOnlyWithTheirOwnSetting() {
+        FilterPreferences.Values aigcOn = new FilterPreferences.Values(
+                false, true, true, false, "",
+                false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS, true);
+        FilterPreferences.Values aigcOff = new FilterPreferences.Values(
+                false, true, true, false, "",
+                false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS, false);
+
+        for (int type : new int[] {162, 163, 170, 200}) {
+            assertEquals("aigc model", snapshot(videoAweme(type), aigcOn).filterReason);
+            assertFalse("type " + type, snapshot(videoAweme(type), aigcOff).shouldFilter());
+        }
+    }
+
+    @Test
+    public void coverImageListOnPlayableVideoIsNotImageFiltered() {
+        FakeAweme aweme = videoAweme(0);
+        aweme.video = new FakeVideo(List.of("https://example.invalid/v.mp4"));
+        aweme.imageInfos = List.of(new Object());
+        aweme.hostImage = true;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                aweme,
+                new FilterPreferences.Values(
+                        false, true, false, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+        );
+
+        assertFalse(snapshot.isPhoto());
+        assertFalse(snapshot.shouldFilter());
+    }
+
+    @Test
     public void liveReplayWithPlayUrlIsNotLiveFiltered() {
         FakeAweme replay = videoAweme(102);
         replay.hostLive = true;

@@ -21,6 +21,7 @@ final class FeedNavigator {
         FILTER_AD,
         FILTER_LIVE,
         FILTER_IMAGE,
+        FILTER_AIGC,
         FILTER_KEYWORD,
         FILTER_VIDEO,
         FILTER_LONG_VIDEO,
@@ -50,6 +51,9 @@ final class FeedNavigator {
         }
         if (filterReason.startsWith("live")) {
             return Reason.FILTER_LIVE;
+        }
+        if (filterReason.startsWith("aigc")) {
+            return Reason.FILTER_AIGC;
         }
         if (filterReason.startsWith("long video")) {
             return Reason.FILTER_LONG_VIDEO;
