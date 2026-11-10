@@ -242,8 +242,8 @@ public final class FeedContentTracker {
         int imageInfoCount = AwemeAccessor.collectionSize(imageInfos);
         List<PlayUrl> playUrls = AwemeAccessor.resolvePlayUrls(video);
         boolean hasPlayUrl = !playUrls.isEmpty();
-        boolean live = Snapshot.isLiveModel(hostLive, awemeType, hasPlayUrl);
-        boolean aigc = Snapshot.isAigcModel(awemeType);
+        boolean live = Snapshot.isLiveModel(awemeType);
+        Object riskModel = model.riskModel();
         String title = model.title();
         String description = model.description();
         StatisticsAccessor statistics = new StatisticsAccessor(model.statistics());
@@ -277,8 +277,6 @@ public final class FeedContentTracker {
             if (activeSettings.skipLives) {
                 reason = "live model";
             }
-        } else if (aigc && activeSettings.skipAigc) {
-            reason = "aigc model";
         } else if (photo || article != null) {
             if (activeSettings.skipImages) {
                 reason = photo ? "photo article model" : "article model";
@@ -308,6 +306,8 @@ public final class FeedContentTracker {
                 imageCount,
                 imageInfoCount,
                 live,
+                hostLive,
+                AwemeAccessor.describeIntFields(riskModel),
                 hostImage,
                 hostMultiImage,
                 slides,
@@ -342,6 +342,9 @@ public final class FeedContentTracker {
         final int imageCount;
         final int imageInfoCount;
         final boolean live;
+        final boolean hostLive;
+        /** Diagnostics only: int fields of the host risk model, if any. */
+        final String riskFields;
         final boolean hostImage;
         final boolean hostMultiImage;
         final boolean slides;
@@ -374,6 +377,8 @@ public final class FeedContentTracker {
                 int imageCount,
                 int imageInfoCount,
                 boolean live,
+                boolean hostLive,
+                String riskFields,
                 boolean hostImage,
                 boolean hostMultiImage,
                 boolean slides,
@@ -405,6 +410,8 @@ public final class FeedContentTracker {
             this.imageCount = imageCount;
             this.imageInfoCount = imageInfoCount;
             this.live = live;
+            this.hostLive = hostLive;
+            this.riskFields = riskFields;
             this.hostImage = hostImage;
             this.hostMultiImage = hostMultiImage;
             this.slides = slides;
@@ -433,16 +440,15 @@ public final class FeedContentTracker {
         }
 
         /**
-         * Content kind is decided by the host {@code awemeType} first; the
-         * tables mirror the ones the Kevin module uses (its own type tables
-         * were read from its APK, the code was not copied). Host booleans and
-         * image collections are only secondary evidence, because a normal
-         * video can carry a cover-image list and {@code isLive()} answers true
-         * for replay / third-party live types as well.
+         * Content kind is decided by the host {@code awemeType} alone. The two
+         * tables are the ones the Kevin module actually applies in its feed
+         * path (read out of its APK; its code was not copied). Host booleans
+         * are never allowed to add a live verdict: {@code isLive()} answers
+         * true for replay and third-party live types, which are ordinary
+         * playable videos, and a missing play url must not flip the verdict.
          */
         static final int[] LIVE_TYPES = {41, 101, 105};
         static final int[] IMAGE_TYPES = {2, 0x44};
-        static final int[] AIGC_TYPES = {162, 163, 170, 200};
 
         static boolean isTypeIn(int[] types, int awemeType) {
             for (int type : types) {
@@ -453,18 +459,8 @@ public final class FeedContentTracker {
             return false;
         }
 
-        static boolean isLiveModel(boolean hostLive, int awemeType, boolean hasPlayUrl) {
-            if (isTypeIn(LIVE_TYPES, awemeType)) {
-                return true;
-            }
-            if (isTypeIn(IMAGE_TYPES, awemeType) || isTypeIn(AIGC_TYPES, awemeType)) {
-                return false;
-            }
-            return hostLive && !hasPlayUrl;
-        }
-
-        static boolean isAigcModel(int awemeType) {
-            return isTypeIn(AIGC_TYPES, awemeType);
+        static boolean isLiveModel(int awemeType) {
+            return isTypeIn(LIVE_TYPES, awemeType);
         }
 
         static boolean isPhotoModel(

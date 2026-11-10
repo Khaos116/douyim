@@ -149,6 +149,47 @@ public final class AwemeAccessor {
         return duration < 1000L ? duration * 1000L : duration;
     }
 
+    public Object riskModel() {
+        Object risk = readField(type, aweme, "awemeRiskModel");
+        if (risk == null) {
+            risk = readSerializedField(aweme, "aweme_risk_model");
+        }
+        return risk;
+    }
+
+    /**
+     * {@code name=value} for every int-like field of a model object, for the
+     * one-off diagnostics that must identify a field before any feature reads
+     * it. Only called once per aweme id from a logging path.
+     */
+    public static String describeIntFields(Object model) {
+        if (model == null) {
+            return "none";
+        }
+        StringBuilder out = new StringBuilder();
+        for (Field field : model.getClass().getDeclaredFields()) {
+            Class<?> fieldType = field.getType();
+            if (fieldType != int.class
+                    && fieldType != Integer.class
+                    && fieldType != long.class
+                    && fieldType != Long.class
+                    && fieldType != boolean.class
+                    && fieldType != Boolean.class) {
+                continue;
+            }
+            try {
+                field.setAccessible(true);
+                if (out.length() > 0) {
+                    out.append(' ');
+                }
+                out.append(field.getName()).append('=').append(field.get(model));
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+                // A field the host refuses to expose adds nothing here.
+            }
+        }
+        return out.length() == 0 ? "none" : out.toString();
+    }
+
     public Object statistics() {
         Object statistics = invokeNoArg(type, aweme, "getStatistics");
         if (statistics == null) {

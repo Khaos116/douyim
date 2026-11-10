@@ -21,7 +21,6 @@ final class FeedNavigator {
         FILTER_AD,
         FILTER_LIVE,
         FILTER_IMAGE,
-        FILTER_AIGC,
         FILTER_KEYWORD,
         FILTER_VIDEO,
         FILTER_LONG_VIDEO,
@@ -52,9 +51,6 @@ final class FeedNavigator {
         if (filterReason.startsWith("live")) {
             return Reason.FILTER_LIVE;
         }
-        if (filterReason.startsWith("aigc")) {
-            return Reason.FILTER_AIGC;
-        }
         if (filterReason.startsWith("long video")) {
             return Reason.FILTER_LONG_VIDEO;
         }
@@ -81,8 +77,17 @@ final class FeedNavigator {
         return !alreadyFired;
     }
 
+    /**
+     * A playback-completion callback may also fire for the background audio of
+     * a photo post or an article, whose {@code video} field is a placeholder,
+     * so those must never be navigated away from here.
+     */
     static boolean canNavigatePlayback(FeedContentTracker.Snapshot model) {
-        return model != null && model.hasVideo && !model.live;
+        return model != null
+                && model.hasVideo
+                && !model.live
+                && !model.isPhoto()
+                && !model.hasArticle;
     }
 
     /**

@@ -1827,6 +1827,7 @@ final class ImmersiveUi {
                     lastLiveRecommendationCheckAid = model.aid;
                     LogBook.i("[Filter] live check aid=" + model.aid
                             + " awemeType=" + model.awemeType
+                            + " hostLive=" + model.hostLive
                             + " hasVideo=" + model.hasVideo
                             + " recommendationTab=" + recommendationTab
                             + " activity=" + (activityName == null ? "?" : activityName)
@@ -1869,6 +1870,10 @@ final class ImmersiveUi {
                         + " collect=" + model.collectCount
                         + " share=" + model.shareCount
                         + " play=" + model.playCount);
+                LogBook.i("[Aweme] aid=" + model.aid
+                        + " awemeType=" + model.awemeType
+                        + " hostLive=" + model.hostLive
+                        + " risk=[" + model.riskFields + "]");
                 LogBook.i("[PublishInfo] aid=" + model.aid
                         + " ipLabel=" + model.ipLabel
                         + " poi=" + model.poiName

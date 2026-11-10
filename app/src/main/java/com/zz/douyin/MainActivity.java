@@ -41,7 +41,6 @@ public final class MainActivity extends Activity
     private Switch skipAds;
     private Switch skipImages;
     private Switch skipLives;
-    private Switch skipAigc;
     private Switch skipVideos;
     private Switch skipLongVideos;
     private EditText longThresholdInput;
@@ -167,13 +166,6 @@ public final class MainActivity extends Activity
                 "直播",
                 "推荐页跳过直播间；在直播 tab 内不跳过",
                 FilterPreferences.KEY_SKIP_LIVES
-        );
-        addDivider(typeCard);
-        skipAigc = addSwitch(
-                typeCard,
-                "AI 生成",
-                "跳过 AIGC 类型内容（抖音类型 162/163/170/200）",
-                FilterPreferences.KEY_SKIP_AIGC
         );
         addDivider(typeCard);
         skipVideos = addSwitch(
@@ -549,7 +541,6 @@ public final class MainActivity extends Activity
         skipAds.setChecked(values.skipAds);
         skipImages.setChecked(values.skipImages);
         skipLives.setChecked(values.skipLives);
-        skipAigc.setChecked(values.skipAigc);
         skipVideos.setChecked(values.skipVideos);
         skipLongVideos.setChecked(values.skipLongVideos);
         longThresholdInput.setText(
@@ -701,7 +692,6 @@ public final class MainActivity extends Activity
         skipAds.setEnabled(enabled);
         skipImages.setEnabled(enabled);
         skipLives.setEnabled(enabled);
-        skipAigc.setEnabled(enabled);
         skipVideos.setEnabled(enabled);
         skipLongVideos.setEnabled(enabled);
         longThresholdInput.setEnabled(enabled);

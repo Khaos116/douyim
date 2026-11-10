@@ -68,6 +68,8 @@
   isLiveAwemeType(int)        DYHook.java:291732   直播：41, 101, 105
   isImageAwemeType(int)       DYHook.java:291652   图文：2, 68(0x44)
   isAiAwemeType(int)          DYHook.java:290759   AIGC：162, 163(0xA3), 170, 200
+      【2026-11-10 更正】该方法在 Kevin 整包里只有定义、没有任何调用点，是死代码，
+        不能当判定依据。Kevin 实际的 AI 判定见下面 2.6。
   isEcommerceAwemeType(int)   DYHook.java:291478   电商：51, 52, 61, 104, 112, 140, 145, 147,
                                                         3002, 4000, 4008, 9001
       （源码里 112 写成 kevin.fun.R.styleable.AppCompatTheme_toolbarNavigationButtonStyle
@@ -84,6 +86,19 @@
   播放相关：auto_play_next、fullscreen_play、disable_new_long_press_play、video_speed_enable
   注意 shield_unknown：不在任何已知表里的 awemeType 单独成桶，可单独选择是否屏蔽。
   这是「数据诚实」的一种做法——未知类型不硬塞进某个已知桶。
+
+2.6 AI（AIGC）的真实判定依据
+  isConfirmedAigc(Object)   DYHook.java:291126
+    读 aweme 字段 "awemeRiskModel"
+      （壳 androidx/emoji2/viewsintegration/C0025.java:522 返回 "awemeRiskModel"），
+    再读该对象中一个 int 字段，字段名来自偏好键 "AwemeRiskModel_FIELD"
+      （壳 androidx/lifecycle/viewmodel/savedstate/C0049.java:411），由 DexKit 运行时发现，
+    取值 == 44 或 == 76 判为确认 AI。
+  isSuspectAigc(Object)     DYHook.java:292380
+    同一字段，取值 == 47 判为疑似 AI，对应开关 shield_aigc_suspect。
+  含义：AI 判定靠的是宿主风险模型里的标记，不是 awemeType。本项目若要做 AI 过滤，
+  必须先在真机日志里确定该 int 字段名（commit 中已加 [Aweme] risk=[…] 诊断日志），
+  不能照抄 awemeType 常量。
 
 2.4 过滤时机：在接口响应解码时删 item（与本项目架构的根本差异）
   hookProtobufDecode(XC_LoadPackage.LoadPackageParam)   DYHook.java:189864

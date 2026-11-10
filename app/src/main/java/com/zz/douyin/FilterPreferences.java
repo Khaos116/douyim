@@ -17,7 +17,6 @@ public final class FilterPreferences {
     public static final String KEY_SKIP_ADS = "skip_ads";
     public static final String KEY_SKIP_IMAGES = "skip_images";
     public static final String KEY_SKIP_LIVES = "skip_lives";
-    public static final String KEY_SKIP_AIGC = "skip_aigc";
     public static final String KEY_SKIP_VIDEOS = "skip_videos";
     public static final String KEY_VIDEO_KEYWORDS = "video_keywords";
     public static final String KEY_SKIP_LONG_VIDEOS = "skip_long_videos";
@@ -40,7 +39,6 @@ public final class FilterPreferences {
     public static final boolean DEFAULT_SKIP_ADS = true;
     public static final boolean DEFAULT_SKIP_IMAGES = true;
     public static final boolean DEFAULT_SKIP_LIVES = true;
-    public static final boolean DEFAULT_SKIP_AIGC = false;
     public static final boolean DEFAULT_SKIP_VIDEOS = false;
     public static final boolean DEFAULT_SKIP_LONG_VIDEOS = false;
     public static final long DEFAULT_LONG_VIDEO_THRESHOLD_MS = 180_000L;
@@ -82,8 +80,7 @@ public final class FilterPreferences {
                 DEFAULT_SKIP_VIDEOS,
                 "",
                 DEFAULT_SKIP_LONG_VIDEOS,
-                DEFAULT_LONG_VIDEO_THRESHOLD_MS,
-                DEFAULT_SKIP_AIGC
+                DEFAULT_LONG_VIDEO_THRESHOLD_MS
         );
     }
 
@@ -99,8 +96,7 @@ public final class FilterPreferences {
                 preferences.getString(KEY_VIDEO_KEYWORDS, ""),
                 preferences.getBoolean(KEY_SKIP_LONG_VIDEOS, DEFAULT_SKIP_LONG_VIDEOS),
                 preferences.getLong(
-                        KEY_LONG_VIDEO_THRESHOLD_MS, DEFAULT_LONG_VIDEO_THRESHOLD_MS),
-                preferences.getBoolean(KEY_SKIP_AIGC, DEFAULT_SKIP_AIGC)
+                        KEY_LONG_VIDEO_THRESHOLD_MS, DEFAULT_LONG_VIDEO_THRESHOLD_MS)
         );
     }
 
@@ -196,10 +192,8 @@ public final class FilterPreferences {
         public final String keywordText;
         public final boolean skipLongVideos;
         public final long longVideoThresholdMs;
-        public final boolean skipAigc;
         private final List<String> keywords;
 
-        /** Legacy argument list: AIGC filtering keeps its default. */
         public Values(
                 boolean skipAds,
                 boolean skipImages,
@@ -209,20 +203,6 @@ public final class FilterPreferences {
                 boolean skipLongVideos,
                 long longVideoThresholdMs
         ) {
-            this(skipAds, skipImages, skipLives, skipVideos, keywordText,
-                    skipLongVideos, longVideoThresholdMs, DEFAULT_SKIP_AIGC);
-        }
-
-        public Values(
-                boolean skipAds,
-                boolean skipImages,
-                boolean skipLives,
-                boolean skipVideos,
-                String keywordText,
-                boolean skipLongVideos,
-                long longVideoThresholdMs,
-                boolean skipAigc
-        ) {
             this.skipAds = skipAds;
             this.skipImages = skipImages;
             this.skipLives = skipLives;
@@ -230,7 +210,6 @@ public final class FilterPreferences {
             this.keywordText = keywordText == null ? "" : keywordText;
             this.skipLongVideos = skipLongVideos;
             this.longVideoThresholdMs = longVideoThresholdMs;
-            this.skipAigc = skipAigc;
             this.keywords = parseKeywords(this.keywordText);
         }
 

@@ -191,31 +191,6 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
-    public void aigcModelStillObeysImageAndKeywordFiltersWhenAigcIsOff() {
-        FakeAweme imagePost = videoAweme(163);
-        imagePost.video = null;
-        imagePost.imageInfos = List.of(new Object());
-
-        assertEquals("photo article model", snapshot(
-                imagePost,
-                new FilterPreferences.Values(
-                        false, true, false, false, "",
-                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS, false)
-        ).filterReason);
-
-        FakeAweme videoPost = videoAweme(163);
-        videoPost.video = new FakeVideo(List.of("https://example.invalid/v.mp4"));
-        videoPost.desc = "AI 生成的游戏画面";
-
-        assertEquals("video keyword: 游戏", snapshot(
-                videoPost,
-                new FilterPreferences.Values(
-                        false, true, true, false, "游戏",
-                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS, false)
-        ).filterReason);
-    }
-
-    @Test
     public void imageTypeIsNeverTakenForLiveByHostFlag() {
         FakeAweme aweme = videoAweme(2);
         aweme.video = null;
@@ -233,6 +208,20 @@ public final class FeedContentTrackerTest {
     }
 
     @Test
+    public void playbackNavigationRejectsPhotoAndArticleModels() {
+        FakeAweme photo = videoAweme(0x44);
+        assertFalse(FeedNavigator.canNavigatePlayback(snapshot(photo, null)));
+
+        FakeAweme article = videoAweme(0);
+        article.articleInfo = new Object();
+        assertFalse(FeedNavigator.canNavigatePlayback(snapshot(article, null)));
+
+        FakeAweme video = videoAweme(0);
+        video.video = new FakeVideo(List.of("https://example.invalid/v.mp4"));
+        assertTrue(FeedNavigator.canNavigatePlayback(snapshot(video, null)));
+    }
+
+    @Test
     public void liveTypeTableCoversFortyOneAndOneHundredFive() {
         for (int type : new int[] {41, 101, 105}) {
             FeedContentTracker.Snapshot snapshot = snapshot(
@@ -244,21 +233,6 @@ public final class FeedContentTrackerTest {
 
             assertTrue("type " + type, snapshot.live);
             assertEquals("live model", snapshot.filterReason);
-        }
-    }
-
-    @Test
-    public void aigcTypesFilterOnlyWithTheirOwnSetting() {
-        FilterPreferences.Values aigcOn = new FilterPreferences.Values(
-                false, true, true, false, "",
-                false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS, true);
-        FilterPreferences.Values aigcOff = new FilterPreferences.Values(
-                false, true, true, false, "",
-                false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS, false);
-
-        for (int type : new int[] {162, 163, 170, 200}) {
-            assertEquals("aigc model", snapshot(videoAweme(type), aigcOn).filterReason);
-            assertFalse("type " + type, snapshot(videoAweme(type), aigcOff).shouldFilter());
         }
     }
 
@@ -278,6 +252,23 @@ public final class FeedContentTrackerTest {
 
         assertFalse(snapshot.isPhoto());
         assertFalse(snapshot.shouldFilter());
+    }
+
+    @Test
+    public void hostLiveFlagNeverMakesAnUnknownTypeLive() {
+        FakeAweme replay = videoAweme(102);
+        replay.hostLive = true;
+        replay.video = null;
+
+        FeedContentTracker.Snapshot snapshot = snapshot(
+                replay,
+                new FilterPreferences.Values(
+                        false, false, true, false, "",
+                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
+        );
+
+        assertFalse(snapshot.live);
+        assertTrue(snapshot.hostLive);
     }
 
     @Test
@@ -302,22 +293,6 @@ public final class FeedContentTrackerTest {
         FakeAweme live = videoAweme(101);
         live.hostLive = true;
         live.video = new FakeVideo(List.of("https://example.invalid/live.flv"));
-
-        FeedContentTracker.Snapshot snapshot = snapshot(
-                live,
-                new FilterPreferences.Values(
-                        false, false, true, false, "",
-                        false, FilterPreferences.DEFAULT_LONG_VIDEO_THRESHOLD_MS)
-        );
-
-        assertTrue(snapshot.live);
-        assertEquals("live model", snapshot.filterReason);
-    }
-
-    @Test
-    public void hostLiveWithoutPlayUrlStaysFiltered() {
-        FakeAweme live = videoAweme(0);
-        live.hostLive = true;
 
         FeedContentTracker.Snapshot snapshot = snapshot(
                 live,
