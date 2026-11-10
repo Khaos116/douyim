@@ -538,6 +538,12 @@ public final class MainActivity extends Activity
             case FilterPreferences.KEY_HIDE_TABS:
                 to.putString(key, from.getString(key, ""));
                 break;
+            case FilterPreferences.KEY_VIDEO_QUALITY:
+                to.putString(key, from.getString(
+                        key,
+                        FilterPreferences.DEFAULT_VIDEO_QUALITY
+                ));
+                break;
             case FilterPreferences.KEY_COUNT_TEXT_COLOR:
             case FilterPreferences.KEY_PUBLISH_TIME_COLOR:
             case FilterPreferences.KEY_LOCATION_TEXT_COLOR:
@@ -560,6 +566,8 @@ public final class MainActivity extends Activity
         moduleEnabled.setChecked(FilterPreferences.readModuleEnabled(bound));
         immersiveEnabled.setChecked(FilterPreferences.readImmersiveEnabled(bound));
         blockDoubleTap.setChecked(FilterPreferences.readBlockDoubleTap(bound));
+        doubleTapComments.setChecked(FilterPreferences.readDoubleTapComments(bound));
+        refreshQualityChips(FilterPreferences.readVideoQuality(bound));
         FilterPreferences.Values values = FilterPreferences.read(bound);
         skipAds.setChecked(values.skipAds);
         skipImages.setChecked(values.skipImages);
@@ -781,6 +789,7 @@ public final class MainActivity extends Activity
         SharedPreferences.Editor editor = current.edit();
         if (editor != null) {
             editor.putString(key, value).apply();
+            afterSave(key);
             if (FilterPreferences.KEY_VIDEO_QUALITY.equals(key)) {
                 refreshQualityChips(value);
             }

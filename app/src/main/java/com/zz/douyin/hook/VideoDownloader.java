@@ -585,6 +585,13 @@ final class VideoDownloader {
         if (refreshed == null || refreshed.playUrls.isEmpty()) {
             return Collections.emptyList();
         }
+        // 重试期间用户可能已经滑到下一条：接受别的作品地址会把 B 的内容
+        // 存成 A 的文件名，所以只接受同一个 aid 的刷新结果。
+        if (snapshot.aid == null || !snapshot.aid.equals(refreshed.aid)) {
+            LogBook.i("[Download] refresh skipped: feed moved from aid="
+                    + snapshot.aid + " to aid=" + refreshed.aid);
+            return Collections.emptyList();
+        }
         List<FeedContentTracker.PlayUrl> fresh = new ArrayList<>();
         for (FeedContentTracker.PlayUrl candidate : refreshed.playUrls) {
             boolean known = false;

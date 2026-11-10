@@ -2176,11 +2176,12 @@ final class ImmersiveUi {
                 if (!confirmFilterCandidate(model.aid, reason, now)) {
                     return true;
                 }
-                filterCurrentItem(
+                // 熔断或防抖让这次跳过没有发生时返回 false，让精确人数、
+                // 发布时间和沉浸界面在暂停过滤期间继续正常刷新。
+                return filterCurrentItem(
                         decor,
                         reason + " " + model.classificationDetails()
                 );
-                return true;
             }
             resetFilterCandidate();
             if (!model.aid.equals(lastAcceptedAid)) {

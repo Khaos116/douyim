@@ -71,9 +71,29 @@ final class QualityHooks {
     /** 已做过模型发现的播放器实例，避免每次 play 回调都遍历对象图。 */
     private static final java.util.Set<Object> DISCOVERED_PLAYERS =
             Collections.newSetFromMap(new WeakHashMap<>());
-    /** 已钉死过 bitRate 字段的 SimVideoUrlModel 实例。 */
-    private static final Map<Object, Boolean> PINNED_SIM =
+    /** 已钉死过 bitRate 字段的 SimVideoUrlModel 实例，保留宿主原值用于改档恢复。 */
+    private static final Map<Object, SimPin> PINNED_SIM =
             Collections.synchronizedMap(new WeakHashMap<>());
+
+    /**
+     * 一个 SimVideoUrlModel 的钉死快照。{@code variants} 为 null 表示这个模型
+     * 没有可钉死的字段，只记录“已尝试”。清晰度设置变化时用这里的原值把宿主
+     * 列表与 hit 预选还原，再按新目标重新选档；选“自动”时只还原不再裁剪。
+     */
+    private static final class SimPin {
+        final List<Object> variants;
+        final Object hitBitrate;
+        final Object hitDashVideoBitrate;
+        final String setting;
+
+        SimPin(List<Object> variants, Object hitBitrate,
+               Object hitDashVideoBitrate, String setting) {
+            this.variants = variants;
+            this.hitBitrate = hitBitrate;
+            this.hitDashVideoBitrate = hitDashVideoBitrate;
+            this.setting = setting;
+        }
+    }
     /** 钉死过程的重入守卫：防止被钩方法在哈希表运算中递归触发。 */
     private static final ThreadLocal<Boolean> IN_SIM_PIN =
             ThreadLocal.withInitial(() -> Boolean.FALSE);
@@ -258,36 +278,55 @@ final class QualityHooks {
     }
 
     private static void pinSimModelOnce(Object model) {
-        if (model == null || !enforcing()) {
+        if (model == null) {
             return;
         }
+        String setting = qualitySetting;
+        SimPin pin;
         synchronized (PINNED_SIM) {
-            if (PINNED_SIM.containsKey(model)) {
-                return;
-            }
+            pin = PINNED_SIM.get(model);
+        }
+        if (pin != null && pin.setting.equals(setting)) {
+            return;
+        }
+        if (pin == null && !enforcing()) {
+            // 自动档且从未钉死过：没有要还原的东西，不做任何反射。
+            return;
         }
         Field bitRateField = cachedField(model.getClass(), "bitRate");
         if (bitRateField == null) {
             // 结构变了就没有可钉死的字段，标记完成避免反复反射。
-            synchronized (PINNED_SIM) {
-                PINNED_SIM.put(model, Boolean.TRUE);
+            rememberSimPin(model, new SimPin(null, null, null, setting));
+            return;
+        }
+        List<Object> variants;
+        Object hitBitrate;
+        Object hitDash;
+        if (pin != null && pin.variants != null) {
+            // 设置变过（改档或切回自动）：先还原宿主原值，再按新目标重新选档。
+            if (!restoreSimModel(model, bitRateField, pin)) {
+                return;
             }
-            return;
+            variants = pin.variants;
+            hitBitrate = pin.hitBitrate;
+            hitDash = pin.hitDashVideoBitrate;
+        } else {
+            Object raw;
+            try {
+                raw = bitRateField.get(model);
+            } catch (ReflectiveOperationException | RuntimeException error) {
+                return;
+            }
+            if (!(raw instanceof List<?> list) || list.isEmpty()) {
+                // 列表还没填好，等下一次方法调用再试。
+                return;
+            }
+            variants = new ArrayList<>(list);
+            hitBitrate = readSimField(model, "hitBitrate");
+            hitDash = readSimField(model, "hitDashVideoBitrate");
         }
-        Object raw;
-        try {
-            raw = bitRateField.get(model);
-        } catch (ReflectiveOperationException | RuntimeException error) {
-            return;
-        }
-        if (!(raw instanceof List<?> variants) || variants.isEmpty()) {
-            // 列表还没填好，等下一次方法调用再试。
-            return;
-        }
-        synchronized (PINNED_SIM) {
-            PINNED_SIM.put(model, Boolean.TRUE);
-        }
-        if (variants.size() < 2) {
+        rememberSimPin(model, new SimPin(variants, hitBitrate, hitDash, setting));
+        if (!enforcing() || variants.size() < 2) {
             return;
         }
 
@@ -356,6 +395,49 @@ final class QualityHooks {
         Log.i(DouyinModule.TAG, "quality pinned(sim) target=" + describeTarget(target)
                 + " kept=" + bestHeight + "p variants=" + kept.size() + "/" + variants.size()
                 + " available=[" + available + "]");
+    }
+
+    private static void rememberSimPin(Object model, SimPin pin) {
+        synchronized (PINNED_SIM) {
+            PINNED_SIM.put(model, pin);
+        }
+    }
+
+    /** 把宿主原始档位列表与 hit 预选写回模型，供改档后重新选档。 */
+    private static boolean restoreSimModel(Object model, Field bitRateField, SimPin pin) {
+        try {
+            bitRateField.set(model, new ArrayList<>(pin.variants));
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            Log.w(DouyinModule.TAG, "quality sim restore failed", error);
+            return false;
+        }
+        writeSimField(model, "hitBitrate", pin.hitBitrate);
+        writeSimField(model, "hitDashVideoBitrate", pin.hitDashVideoBitrate);
+        return true;
+    }
+
+    private static Object readSimField(Object model, String fieldName) {
+        Field field = cachedField(model.getClass(), fieldName);
+        if (field == null) {
+            return null;
+        }
+        try {
+            return field.get(model);
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            return null;
+        }
+    }
+
+    private static void writeSimField(Object model, String fieldName, Object value) {
+        Field field = cachedField(model.getClass(), fieldName);
+        if (field == null) {
+            return;
+        }
+        try {
+            field.set(model, value);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // 还原 hit 预选失败只影响预选，列表已经还原成宿主原值。
+        }
     }
 
     /**
@@ -469,7 +551,15 @@ final class QualityHooks {
 
     private static void readPreferences(SharedPreferences preferences) {
         moduleEnabled = FilterPreferences.readModuleEnabled(preferences);
-        qualitySetting = FilterPreferences.readVideoQuality(preferences);
+        String updated = FilterPreferences.readVideoQuality(preferences);
+        if (!updated.equals(qualitySetting)) {
+            qualitySetting = updated;
+            // 引擎层 PINNED 只是计算缓存（不改宿主对象），设置变了直接丢掉重算。
+            // Sim 层不能直接丢：宿主列表已被改写，必须靠 SimPin 的原值还原。
+            synchronized (PINNED) {
+                PINNED.clear();
+            }
+        }
     }
 
     private static int hookEngineEntry(Class<?> type) {

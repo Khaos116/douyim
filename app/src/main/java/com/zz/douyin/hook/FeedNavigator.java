@@ -143,6 +143,9 @@ final class FeedNavigator {
         long currentSwipeToken = ++swipeToken;
         lastSwipeAt = now;
         PlaybackState.beginAutoSwitch();
+        // 宿主播放器会被下一条复用，上一条“接近结尾”的位置样本若留着，
+        // 新视频的第一个样本就会被当成循环边界，再次误报播放完成。
+        PlaybackState.resetProgressAfterSwipe();
         ImmersiveUi.armContentFilter(700L);
         LogBook.i("swipe to next feed item: " + reason);
 

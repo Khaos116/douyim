@@ -493,7 +493,7 @@ public final class FeedContentTracker {
         }
         List<PlayUrl> ordered = orderPlayUrlsByQuality(
                 primary,
-                collectGears(video, seen),
+                collectGears(video),
                 quality
         );
         return ordered.isEmpty()
@@ -565,13 +565,22 @@ public final class FeedContentTracker {
         for (Gear gear : rest) {
             ordered.addAll(gear.urls);
         }
+        // 去重放在选档排序之后：先去重会让与顶层地址同址的档位变成空档位而
+        // 被丢掉，钉死 720P 时反而优先下载 540P。
+        List<PlayUrl> deduped = new ArrayList<>();
+        Set<String> orderedSeen = new LinkedHashSet<>();
+        for (PlayUrl candidate : ordered) {
+            if (orderedSeen.add(candidate.url)) {
+                deduped.add(candidate);
+            }
+        }
         LogBook.d("download urls ordered by quality: setting="
                 + quality + " chosen=" + chosen + "p gears=" + describeGears(gears));
-        return ordered;
+        return deduped;
     }
 
     /** video.bit_rate[] 里的码率档位，每项带 gear_name 与各自的 play_addr。 */
-    private static List<Gear> collectGears(Object video, Set<String> seen) {
+    private static List<Gear> collectGears(Object video) {
         Object bitRates = readSerializedField(video, "bit_rate");
         if (bitRates == null) {
             bitRates = readField(video.getClass(), video, "bitRate");
@@ -587,9 +596,12 @@ public final class FeedContentTracker {
             }
             String label = "bit_rate:" + height + "p";
             List<PlayUrl> urls = new ArrayList<>();
-            appendPlayUrls(urls, seen, item, "play_addr", label);
-            appendPlayUrls(urls, seen, item, "play_addr_h264", label);
-            appendPlayUrls(urls, seen, item, "play_addr_bytevc1", label);
+            // 每个档位只在自身内部去重：跨档位（含顶层地址）去重留到排序之后，
+            // 否则与顶层同址的档位会被整档丢掉，选档就选不到它。
+            Set<String> gearSeen = new LinkedHashSet<>();
+            appendPlayUrls(urls, gearSeen, item, "play_addr", label);
+            appendPlayUrls(urls, gearSeen, item, "play_addr_h264", label);
+            appendPlayUrls(urls, gearSeen, item, "play_addr_bytevc1", label);
             if (urls.isEmpty()) {
                 continue;
             }
